@@ -1,0 +1,421 @@
+import { requireSession, clearSession } from './auth.js';
+import { getFinances, mutate, analyze, syncQueue } from './api.js';
+
+const currentSession = requireSession();
+const state = {
+  transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
+  summary: null, cashFlow: null, analysis: { months: [] }, boxBase: {},
+  transactionFilter: 'all', search: '', analysisFilter: 'all'
+};
+const elements = {
+  month: document.querySelector('#month-picker'), dialog: document.querySelector('#transaction-dialog'),
+  form: document.querySelector('#transaction-form'), list: document.querySelector('#transaction-list'),
+  boxes: document.querySelector('#box-grid'), chart: document.querySelector('#category-chart'),
+  chartEmpty: document.querySelector('#chart-empty'), toast: document.querySelector('#toast'),
+  offline: document.querySelector('#offline-banner'), insight: document.querySelector('#insight-text')
+};
+const tabs = { general: 'Visão geral', transactions: 'Lançamentos', analysis: 'Análises', boxes: 'Caixinhas' };
+
+elements.month.value = new Date().toISOString().slice(0, 7);
+updateMonthLabel();
+document.querySelector('#user-email').textContent = currentSession?.user?.email || 'Conta compartilhada';
+document.querySelector('#greeting').textContent = greeting();
+
+document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => openForm()));
+document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => elements.dialog.close()));
+document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
+document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
+document.querySelector('#logout-button').addEventListener('click', () => { clearSession(); window.location.assign('/login'); });
+document.querySelector('#analyze-button').addEventListener('click', generateInsight);
+document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
+document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
+document.querySelector('#analysis-filters').addEventListener('click', handleAnalysisFilter);
+elements.month.addEventListener('change', () => { updateMonthLabel(); load(); });
+document.querySelector('#previous-month').addEventListener('click', () => shiftMonth(-1));
+document.querySelector('#next-month').addEventListener('click', () => shiftMonth(1));
+elements.form.addEventListener('submit', saveTransaction);
+elements.form.elements.tipo.addEventListener('change', enforceDepositStatus);
+elements.list.addEventListener('click', handleTransactionAction);
+elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
+window.addEventListener('hashchange', () => switchTab(location.hash.slice(1), false));
+window.addEventListener('online', async () => {
+  updateConnectivity();
+  const count = 'SyncManager' in window ? 0 : await syncQueue();
+  if (count) { notify(`${count} alteração(ões) sincronizada(s).`); load(); }
+});
+window.addEventListener('offline', updateConnectivity);
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (event) => {
+    if (event.data?.type === 'FINANCES_SYNCED') { notify('Alterações offline sincronizadas.'); load(); }
+  });
+  navigator.serviceWorker.register('/sw.js');
+}
+
+switchTab(location.hash.slice(1) || 'general', false);
+updateConnectivity();
+load();
+
+async function load() {
+  setLoading(true);
+  try {
+    const data = await getFinances(elements.month.value);
+    state.transactions = data.transactions || [];
+    state.configuration = data.configuration || state.configuration;
+    state.summary = data.summary || calculateSummary();
+    state.cashFlow = data.cashFlow || calculateLocalCashFlow();
+    state.analysis = data.analysis || { months: [] };
+    state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
+    render();
+    if (data.offline) notify('Exibindo os últimos dados salvos.');
+  } catch (error) {
+    notify(error.message, true);
+    state.transactions = [];
+    state.summary = calculateSummary();
+    render();
+  } finally {
+    setLoading(false);
+  }
+}
+
+function render() {
+  const summary = state.summary || calculateSummary();
+  document.querySelector('#forecast-balance').textContent = money(summary.saldoPrevisto);
+  document.querySelector('#income-total').textContent = money(summary.receitas);
+  document.querySelector('#expense-total').textContent = money(summary.despesas);
+  document.querySelector('#receivable-total').textContent = money(summary.aReceber);
+  document.querySelector('#payable-total').textContent = money(summary.aPagar);
+  document.querySelector('#balance-note').textContent = balanceMessage(summary.saldoPrevisto);
+  renderCashFlow();
+  renderCategoryChart(summary);
+  renderBoxes(summary.caixinhas || []);
+  renderTransactions();
+  renderAnalysis();
+  populateSelects();
+}
+
+function switchTab(tab, updateHash = true) {
+  const selected = tabs[tab] ? tab : 'general';
+  document.querySelectorAll('[data-view]').forEach((view) => view.classList.toggle('active', view.dataset.view === selected));
+  document.querySelectorAll('[data-tab]').forEach((button) => button.classList.toggle('active', button.dataset.tab === selected));
+  document.querySelector('#page-title').textContent = tabs[selected];
+  if (updateHash) history.replaceState(null, '', `#${selected}`);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function shiftMonth(direction) {
+  const [year, month] = elements.month.value.split('-').map(Number);
+  const date = new Date(year, month - 1 + direction, 1);
+  elements.month.value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  updateMonthLabel();
+  load();
+}
+
+function updateMonthLabel() {
+  if (!elements.month.value) return;
+  const label = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric' }).format(new Date(`${elements.month.value}-01T12:00:00`));
+  document.querySelector('#month-label').textContent = label.replace(/^./, (letter) => letter.toUpperCase());
+}
+
+function renderCashFlow() {
+  const cashFlow = state.cashFlow;
+  const chart = document.querySelector('#cashflow-chart');
+  const badge = document.querySelector('#cashflow-risk');
+  const summary = document.querySelector('#cashflow-summary');
+  if (!cashFlow?.points?.length) {
+    chart.innerHTML = '<div class="empty-state"><p>Fluxo indisponível.</p></div>';
+    return;
+  }
+  const values = cashFlow.points.map((point) => point.balance);
+  const minimum = Math.min(0, ...values);
+  const maximum = Math.max(0, ...values);
+  const range = maximum - minimum || 1;
+  const coordinates = cashFlow.points.map((point, index) => {
+    const x = 20 + index / Math.max(1, cashFlow.points.length - 1) * 960;
+    const y = 220 - (point.balance - minimum) / range * 190;
+    return `${x},${y}`;
+  }).join(' ');
+  const zeroY = 220 - (0 - minimum) / range * 190;
+  chart.innerHTML = `<svg viewBox="0 0 1000 250" role="img" aria-label="Evolução diária do saldo"><line x1="20" y1="${zeroY}" x2="980" y2="${zeroY}" class="zero-line"/><polyline points="${coordinates}" class="cash-line"/><text x="20" y="244">01</text><text x="930" y="244">${cashFlow.points.length}</text></svg>`;
+  const hasRisk = cashFlow.negativePeriods.length > 0;
+  badge.textContent = hasRisk ? 'Atenção necessária' : 'Mês protegido';
+  badge.className = `risk-badge ${hasRisk ? 'danger' : 'safe'}`;
+  const periods = cashFlow.negativePeriods.map((period) => `${shortDate(period.start)} a ${shortDate(period.end)}`).join(', ');
+  summary.innerHTML = `<div><span>Saldo inicial</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: <strong>${periods}</strong>.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
+}
+
+function renderCategoryChart(summary) {
+  const categories = Object.entries(summary.categorias || {}).sort((a, b) => b[1] - a[1]).slice(0, 7);
+  const maximum = categories[0]?.[1] || 1;
+  elements.chart.hidden = categories.length === 0;
+  elements.chartEmpty.hidden = categories.length > 0;
+  elements.chart.innerHTML = categories.map(([name, value]) => `<div class="category-row"><span title="${escapeHtml(name)}">${escapeHtml(name)}</span><div class="bar-track"><div class="bar" style="width:${Math.max(2, value / maximum * 100)}%"></div></div><strong>${money(value)}</strong></div>`).join('');
+  const expenses = state.transactions.filter((item) => item.tipo === 'Despesa').length;
+  document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
+}
+
+function renderBoxes(boxes) {
+  document.querySelector('#boxes-total').textContent = money(boxes.reduce((sum, box) => sum + box.saldo, 0));
+  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><small>${Math.round(box.progresso || 0)}%</small></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div></article>`;
+  elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
+  const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
+  document.querySelector('#favorite-box-list').innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
+}
+
+function renderTransactions() {
+  const query = normalize(state.search);
+  const filtered = state.transactions.filter((item) => {
+    const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
+    const matchesType = state.transactionFilter === 'all' || item.tipo === state.transactionFilter || (state.transactionFilter === 'boxes' && ['Depósito', 'Depósito Caixinha', 'Resgate'].includes(item.tipo));
+    return matchesSearch && matchesType;
+  }).sort((a, b) => a.data.localeCompare(b.data));
+  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'} no período`;
+  elements.list.innerHTML = filtered.length ? filtered.map((item) => {
+    const positive = ['Receita', 'Resgate'].includes(item.tipo);
+    const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+    const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
+    const paid = item.status === 'Pago';
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'}"><button class="status-toggle ${paid ? 'paid' : ''}" data-status="${escapeHtml(item.id)}" ${deposit ? 'disabled title="Depósitos são sempre pagos"' : `title="Marcar como ${paid ? 'pendente' : 'pago'}"`} aria-label="${paid ? 'Pago. Clique para marcar como pendente' : 'Pendente. Clique para marcar como pago'}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span></div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div><div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div></article>`;
+  }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
+}
+
+function renderAnalysis() {
+  const months = state.analysis.months || [];
+  const categories = [...new Set(months.flatMap((month) => Object.keys(month.categories || {})))].sort();
+  const filters = document.querySelector('#analysis-filters');
+  filters.innerHTML = [`<button data-analysis-filter="all" class="${state.analysisFilter === 'all' ? 'active' : ''}">Geral</button>`, ...categories.map((category) => `<button data-analysis-filter="${escapeHtml(category)}" class="${state.analysisFilter === category ? 'active' : ''}">${escapeHtml(category)}</button>`)].join('');
+  document.querySelector('#analysis-filter-label').textContent = state.analysisFilter === 'all' ? 'Todos os gastos' : state.analysisFilter;
+  const values = months.map((month) => state.analysisFilter === 'all' ? month.total : (month.categories?.[state.analysisFilter] || 0));
+  const maximum = Math.max(...values, 1);
+  document.querySelector('#trend-chart').innerHTML = months.map((month, index) => `<div class="trend-column"><strong>${money(values[index])}</strong><div><span style="height:${Math.max(3, values[index] / maximum * 100)}%;--bar:${Math.max(3, values[index] / maximum * 100)}%"></span></div><small>${monthLabel(month.month)}</small></div>`).join('') || '<div class="empty-state"><p>Histórico indisponível.</p></div>';
+  const current = values.at(-1) || 0;
+  const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
+  document.querySelector('#trend-metrics').innerHTML = `<div><span>Mês atual</span><strong>${money(current)}</strong></div><div><span>Média trimestral</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${money(Math.max(...values, 0))}</strong></div>`;
+  const responsibles = Object.entries(months.at(-1)?.responsibles || {}).sort((a, b) => b[1] - a[1]);
+  const responsibleTotal = responsibles.reduce((sum, entry) => sum + entry[1], 0) || 1;
+  document.querySelector('#responsible-chart').innerHTML = responsibles.map(([name, value]) => `<div class="responsible-row"><div><strong>${responsibleName(name)}</strong><span>${Math.round(value / responsibleTotal * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / responsibleTotal * 100}%"></div></div></div>`).join('') || '<p class="muted-copy">Sem despesas no período.</p>';
+}
+
+function handleFilter(event) {
+  const button = event.target.closest('[data-filter]');
+  if (!button) return;
+  state.transactionFilter = button.dataset.filter;
+  document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item === button));
+  renderTransactions();
+}
+
+function handleAnalysisFilter(event) {
+  const button = event.target.closest('[data-analysis-filter]');
+  if (!button) return;
+  state.analysisFilter = button.dataset.analysisFilter;
+  renderAnalysis();
+}
+
+function populateSelects() {
+  const categorySelect = document.querySelector('#category-select');
+  const currentCategory = categorySelect.value;
+  const categories = state.configuration.categorias.length ? state.configuration.categorias : ['Alimentação', 'Lazer', 'Moradia', 'Renda', 'Saúde', 'Transporte'];
+  categorySelect.innerHTML = categories.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
+  if (categories.includes(currentCategory)) categorySelect.value = currentCategory;
+  const originSelect = document.querySelector('#origin-select');
+  const currentOrigin = originSelect.value;
+  const origins = ['Conta Corrente', 'Cartão de Crédito', 'Externo', ...state.configuration.caixinhas.map((box) => box.nome)];
+  originSelect.innerHTML = origins.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
+  if (origins.includes(currentOrigin)) originSelect.value = currentOrigin;
+}
+
+function openForm(transaction = null) {
+  elements.form.reset();
+  populateSelects();
+  document.querySelector('#dialog-title').textContent = transaction ? 'Editar lançamento' : 'Novo lançamento';
+  if (transaction) {
+    for (const [key, value] of Object.entries(transaction)) {
+      const field = elements.form.elements.namedItem(key);
+      if (!field) continue;
+      if (field.type === 'checkbox') field.checked = Boolean(value);
+      else field.value = value;
+    }
+  } else {
+    const lastDay = new Date(Number(elements.month.value.slice(0, 4)), Number(elements.month.value.slice(5, 7)), 0).getDate();
+    elements.form.elements.data.value = `${elements.month.value}-${String(Math.min(new Date().getDate(), lastDay)).padStart(2, '0')}`;
+    elements.form.elements.responsavel.value = 'Nós';
+  }
+  enforceDepositStatus();
+  elements.dialog.showModal();
+  setTimeout(() => elements.form.elements.descricao.focus(), 0);
+}
+
+async function saveTransaction(event) {
+  event.preventDefault();
+  const form = new FormData(elements.form);
+  const existingId = String(form.get('id') || '');
+  const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(form.get('tipo'));
+  const status = isDeposit ? 'Pago' : form.get('status');
+  const transaction = {
+    id: existingId, tipo: form.get('tipo'), descricao: form.get('descricao').trim(), valor: Number(form.get('valor')),
+    data: form.get('data'), dataPg: status === 'Pago' ? form.get('data') : '', mesRef: form.get('data').slice(0, 7),
+    status, categoria: form.get('categoria'), responsavel: form.get('responsavel'), parcelaAtual: 1, totalParcelas: 1,
+    idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem')
+  };
+  const action = existingId ? 'update' : 'create';
+  const saveButton = document.querySelector('#save-button');
+  saveButton.disabled = true;
+  try {
+    const result = await mutate(action, transaction);
+    elements.dialog.close();
+    if (result.queued) {
+      transaction.id ||= `offline-${Date.now()}`;
+      applyLocal(action, transaction);
+      notify('Alteração salva para sincronizar depois.');
+    } else {
+      notify(action === 'create' ? 'Lançamento adicionado.' : 'Lançamento atualizado.');
+      await load();
+    }
+  } catch (error) { notify(error.message, true); }
+  finally { saveButton.disabled = false; }
+}
+
+function enforceDepositStatus() {
+  const deposit = ['Depósito', 'Depósito Caixinha'].includes(elements.form.elements.tipo.value);
+  const status = elements.form.elements.status;
+  if (deposit) status.value = 'Pago';
+  status.disabled = deposit;
+  status.title = deposit ? 'Depósitos são sempre registrados como pagos.' : '';
+}
+
+async function handleTransactionAction(event) {
+  const editId = event.target.closest('[data-edit]')?.dataset.edit;
+  const deleteId = event.target.closest('[data-delete]')?.dataset.delete;
+  const statusId = event.target.closest('[data-status]')?.dataset.status;
+  if (editId) return openForm(state.transactions.find((item) => item.id === editId));
+  if (statusId) return toggleStatus(statusId, event.target.closest('[data-status]'));
+  if (!deleteId) return;
+  const transaction = state.transactions.find((item) => item.id === deleteId);
+  if (!transaction || !confirm(`Excluir “${transaction.descricao}”?`)) return;
+  try {
+    const result = await mutate('delete', transaction);
+    if (result.queued) applyLocal('delete', transaction); else await load();
+    notify(result.queued ? 'Exclusão agendada.' : 'Lançamento excluído.');
+  } catch (error) { notify(error.message, true); }
+}
+
+async function toggleStatus(id, button) {
+  const transaction = state.transactions.find((item) => item.id === id);
+  if (!transaction) return;
+  const status = transaction.status === 'Pago' ? 'Pendente' : 'Pago';
+  button.disabled = true;
+  try {
+    const updated = { ...transaction, status, dataPg: status === 'Pago' ? transaction.data : '' };
+    const result = await mutate('update', updated);
+    if (result.queued) applyLocal('update', updated); else await load();
+    notify(`Lançamento marcado como ${status.toLowerCase()}.`);
+  } catch (error) { notify(error.message, true); button.disabled = false; }
+}
+
+function applyLocal(action, transaction) {
+  if (action === 'create') state.transactions.push(transaction);
+  if (action === 'update') state.transactions = state.transactions.map((item) => item.id === transaction.id ? transaction : item);
+  if (action === 'delete') state.transactions = state.transactions.filter((item) => item.id !== transaction.id);
+  state.summary = calculateSummary();
+  state.cashFlow = calculateLocalCashFlow();
+  render();
+}
+
+function calculateSummary() {
+  const result = { receitas: 0, despesas: 0, saldoPrevisto: 0, saldoAtual: 0, pendente: 0, aReceber: 0, aPagar: 0, categorias: {}, caixinhas: state.configuration.caixinhas.map((box) => ({ ...box, saldo: state.boxBase[box.nome] || 0, progresso: 0 })) };
+  state.transactions.forEach((item) => {
+    const effect = accountEffect(item);
+    if (item.tipo === 'Receita') result.receitas += item.valor;
+    if (item.tipo === 'Despesa') { result.despesas += item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor; }
+    if (item.status === 'Pendente') {
+      result.pendente += item.valor;
+      if (['Receita', 'Resgate'].includes(item.tipo)) result.aReceber += item.valor;
+      if (item.tipo === 'Despesa') result.aPagar += item.valor;
+    }
+    result.saldoPrevisto += effect;
+    if (item.status === 'Pago') result.saldoAtual += effect;
+    applyBoxContribution(result.caixinhas, item, 1);
+  });
+  result.caixinhas.forEach((box) => { box.progresso = box.meta ? Math.min(100, Math.max(0, box.saldo / box.meta * 100)) : 0; });
+  return result;
+}
+
+function calculateLocalCashFlow() {
+  const openingBalance = state.cashFlow?.openingBalance || 0;
+  const days = new Date(Number(elements.month.value.slice(0, 4)), Number(elements.month.value.slice(5, 7)), 0).getDate();
+  let balance = openingBalance;
+  const points = Array.from({ length: days }, (_, index) => {
+    const date = `${elements.month.value}-${String(index + 1).padStart(2, '0')}`;
+    const movement = state.transactions.filter((item) => item.data === date).reduce((sum, item) => sum + accountEffect(item), 0);
+    balance += movement;
+    return { date, movement, balance };
+  });
+  const negativePeriods = points.filter((point) => point.balance < 0).length ? [{ start: points.find((point) => point.balance < 0).date, end: [...points].reverse().find((point) => point.balance < 0).date }] : [];
+  return { openingBalance, closingBalance: balance, minimumBalance: Math.min(...points.map((point) => point.balance)), negativePeriods, points };
+}
+
+function calculateBoxBase(boxes, transactions) {
+  const working = boxes.map((box) => ({ nome: box.nome, saldo: box.saldo || 0 }));
+  transactions.forEach((item) => applyBoxContribution(working, item, -1));
+  return Object.fromEntries(working.map((box) => [box.nome, box.saldo]));
+}
+
+function applyBoxContribution(boxes, item, direction) {
+  const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+  const box = boxes.find((entry) => sameLabel(entry.nome, item.origem) || (isDeposit && sameLabel(entry.nome, item.categoria)));
+  if (!box) return;
+  if (isDeposit) box.saldo += item.valor * direction;
+  if (['Despesa', 'Resgate'].includes(item.tipo)) box.saldo -= item.valor * direction;
+}
+
+function accountEffect(item) {
+  if (!['Conta Corrente', 'Cartão de Crédito'].includes(item.origem)) return 0;
+  if (['Receita', 'Resgate'].includes(item.tipo)) return item.valor;
+  if (['Despesa', 'Depósito', 'Depósito Caixinha'].includes(item.tipo)) return -item.valor;
+  return 0;
+}
+
+async function generateInsight() {
+  const button = document.querySelector('#analyze-button');
+  button.disabled = true;
+  button.firstChild.textContent = 'Analisando os dados... ';
+  try { elements.insight.textContent = (await analyze(elements.month.value)).insight; }
+  catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; button.firstChild.textContent = 'Analisar dados com IA '; }
+}
+
+function updateConnectivity() { elements.offline.hidden = navigator.onLine; }
+function setLoading(loading) { document.body.style.cursor = loading ? 'progress' : ''; }
+function notify(message, error = false) {
+  elements.toast.textContent = message;
+  elements.toast.classList.toggle('error', error);
+  elements.toast.classList.add('show');
+  document.body.classList.add('toast-open');
+  clearTimeout(notify.timeout);
+  notify.timeout = setTimeout(() => {
+    elements.toast.classList.remove('show');
+    document.body.classList.remove('toast-open');
+  }, 3500);
+}
+function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0); }
+function fullDate(value) { return new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T12:00:00`)); }
+function shortDate(value) { return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(`${value}T12:00:00`)); }
+function monthLabel(value) { return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' }).format(new Date(`${value}-01T12:00:00`)).replace('.', ''); }
+function responsibleName(value) { return ({ Ele: 'Danilo', Ela: 'Talyta', Nós: 'Casal' })[value] || value; }
+function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
+function sameLabel(left, right) { return normalize(left) === normalize(right); }
+function greeting() { const hour = new Date().getHours(); return hour < 12 ? 'BOM DIA, DUPLA' : hour < 18 ? 'BOA TARDE, DUPLA' : 'BOA NOITE, DUPLA'; }
+function balanceMessage(balance) {
+  if (balance > 0) return 'O mês está no verde. Vocês têm espaço para avançar em uma meta.';
+  if (balance < 0) return 'O previsto pede atenção. Um pequeno ajuste agora pode reequilibrar o mês.';
+  return 'Tudo equilibrado por aqui. Sigam acompanhando juntos.';
+}
+function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
+function iconSvg(name) {
+  const paths = {
+    check: '<path d="m5 12 4 4L19 6"/>',
+    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
+    trash: '<path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/>',
+    money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9H5m14 6h-2"/>'
+  };
+  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
+}

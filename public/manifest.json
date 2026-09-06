@@ -1,0 +1,13 @@
+{
+  "name": "DuoFinance",
+  "short_name": "DuoFinance",
+  "description": "Clareza financeira para construir a dois.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#07110e",
+  "theme_color": "#07110e",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "/assets/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

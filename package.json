@@ -1,0 +1,17 @@
+{
+  "name": "duofinance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PWA de gestao financeira para casais",
+  "scripts": {
+    "dev": "npx vercel@latest dev",
+    "test": "node --test",
+    "check": "node --check api/auth.js && node --check api/financas.js && node --check api/ai/analyze.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "google-auth-library": "^11.0.2"
+  }
+}
