@@ -134,3 +134,18 @@ test('estima fatura por mes previsto quando endpoint de faturas nao esta disponi
   assert.equal(bills[0].dueDate, '2026-09-12');
   assert.equal(bills[0].estimated, true);
 });
+
+test('estima apenas meses que nao possuem fatura oficial', () => {
+  const account = { id: 'account-1', itemId: 'item-1', name: 'Visa' };
+  const bills = mapBills(
+    [{ id: 'official-1', dueDate: '2026-08-10', totalAmount: 300, payments: [] }],
+    account,
+    [
+      { type: 'DEBIT', amount: 300, date: '2026-08-01', creditCardMetadata: { billForecastDate: '2026-08' } },
+      { type: 'DEBIT', amount: 180, date: '2026-09-01', creditCardMetadata: { billForecastDate: '2026-09' } }
+    ]
+  );
+  assert.equal(bills.length, 2);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-08')).estimated, false);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-09')).total, 180);
+});
