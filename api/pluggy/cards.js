@@ -2,6 +2,7 @@
 
 const { verifyRequest } = require('../../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../../lib/http');
+const { nextMonth } = require('../../lib/finance');
 const sheets = require('../../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -14,8 +15,9 @@ module.exports = async function handler(req, res) {
       error.statusCode = 400;
       throw error;
     }
+    const paymentMonth = nextMonth(month);
     const [items, accounts, transactions, bills] = await Promise.all([
-      sheets.listPluggyItems(), sheets.listPluggyAccounts(), sheets.listPluggyTransactions(month), sheets.listPluggyBills(month)
+      sheets.listPluggyItems(), sheets.listPluggyAccounts(), sheets.listPluggyTransactions(month), sheets.listPluggyBills(paymentMonth)
     ]);
     const institutions = new Map(items.map((item) => [item.id, item]));
     const cards = accounts.filter((account) => account.type === 'CREDIT' && account.subtype === 'CREDIT_CARD').map((account) => ({
@@ -24,7 +26,7 @@ module.exports = async function handler(req, res) {
     const bankBalance = accounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
     send(res, 200, {
       configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET),
-      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, bankBalance
+      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, bankBalance, spendingMonth: month, paymentMonth
     });
   } catch (error) {
     errorResponse(res, error);

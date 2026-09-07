@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, billSituation } = require('../lib/finance');
+const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, billSituation, nextMonth } = require('../lib/finance');
 const { mapTransaction, mapBills } = require('../lib/pluggy');
 
 test('calcula saldos sem abater despesas de caixinha da conta corrente', () => {
@@ -189,6 +189,13 @@ test('nao duplica projecao quando a parcela seguinte ja existe', () => {
 test('define situacao da fatura conforme o mes selecionado', () => {
   assert.equal(billSituation('2026-08', 'Pago', '2026-09'), 'Paga');
   assert.equal(billSituation('2026-08', 'Pendente', '2026-09'), 'Pendente');
-  assert.equal(billSituation('2026-09', 'Pago', '2026-09'), 'Aberta');
-  assert.equal(billSituation('2026-10', 'Pendente', '2026-09'), 'Projetada');
+  assert.equal(billSituation('2026-09', 'Pago', '2026-09'), 'Paga');
+  assert.equal(billSituation('2026-09', 'Pendente', '2026-09'), 'Pendente');
+  assert.equal(billSituation('2026-10', 'Pendente', '2026-09'), 'Aberta');
+  assert.equal(billSituation('2026-11', 'Pendente', '2026-09'), 'Projetada');
+});
+
+test('calcula o mes de pagamento seguinte ao mes dos gastos', () => {
+  assert.equal(nextMonth('2026-09'), '2026-10');
+  assert.equal(nextMonth('2026-12'), '2027-01');
 });
