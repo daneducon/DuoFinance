@@ -125,6 +125,11 @@ export async function syncPluggy(itemId) {
   return request('/api/pluggy/sync', { method: 'POST', body: JSON.stringify(itemId ? { itemId } : {}) });
 }
 
+export async function updateBillStatus(id, status) {
+  if (session()?.demo) return { demo: true };
+  return request('/api/financas', { method: 'POST', body: JSON.stringify({ action: 'updateBillStatus', id, status }) });
+}
+
 export async function mutate(action, transaction) {
   const payload = { action, ...(action === 'delete' ? { id: transaction.id } : { transaction }) };
   if (session()?.demo) {

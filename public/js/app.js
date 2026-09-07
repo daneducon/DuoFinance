@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, syncPluggy, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, syncPluggy, updateBillStatus, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
@@ -16,7 +16,7 @@ const elements = {
 };
 elements.boxDialog = document.querySelector('#box-dialog');
 elements.boxForm = document.querySelector('#box-form');
-const tabs = { general: 'Visão geral', transactions: 'Lançamentos', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
+const tabs = { general: 'Visão geral', transactions: 'Contas', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
 
 elements.month.value = new Date().toISOString().slice(0, 7);
 updateMonthLabel();
@@ -222,18 +222,20 @@ function applyLocalBox(box) {
 function renderTransactions() {
   const query = normalize(state.search);
   const filtered = state.transactions.filter((item) => {
+    const accountPayable = item.tipo === 'Despesa' && item.fonte !== 'pluggy';
     const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
-    const matchesType = state.transactionFilter === 'all' || item.tipo === state.transactionFilter || (state.transactionFilter === 'boxes' && ['Depósito', 'Depósito Caixinha', 'Resgate'].includes(item.tipo));
-    return matchesSearch && matchesType;
+    const matchesType = state.transactionFilter === 'all' || (state.transactionFilter === 'pending' && item.status === 'Pendente') || (state.transactionFilter === 'paid' && item.status === 'Pago');
+    return accountPayable && matchesSearch && matchesType;
   }).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
-  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'} no período`;
+  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'conta' : 'contas'} no período`;
   elements.list.innerHTML = filtered.length ? filtered.map((item) => {
     const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
     const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
     const imported = item.fonte === 'pluggy';
+    const bill = item.fonte === 'pluggy-bill';
     const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
     const paid = item.status === 'Pago';
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${imported ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${imported ? 'Status sincronizado pela instituição' : deposit ? 'Depósitos são sempre pagos' : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${imported ? '<span class="source-tag">Pluggy</span>' : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div>${imported ? '<div class="transaction-actions synced-lock">Sincronizado</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${item.estimada ? 'Estimada' : 'Pluggy'}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div>${bill ? '<div class="transaction-actions synced-lock">Fatura</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
   }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
 }
 
@@ -407,6 +409,12 @@ async function toggleStatus(id, button) {
   const status = transaction.status === 'Pago' ? 'Pendente' : 'Pago';
   button.disabled = true;
   try {
+    if (transaction.fonte === 'pluggy-bill') {
+      await updateBillStatus(transaction.id, status);
+      await load();
+      notify(`Fatura marcada como ${status.toLowerCase()}.`);
+      return;
+    }
     const updated = { ...transaction, status, dataPg: status === 'Pago' ? transaction.data : '' };
     const result = await mutate('update', updated);
     if (result.queued) applyLocal('update', updated); else await load();
@@ -426,6 +434,10 @@ function applyLocal(action, transaction) {
 function calculateSummary() {
   const result = { receitas: 0, despesas: 0, saldoPrevisto: 0, saldoAtual: 0, pendente: 0, aReceber: 0, aPagar: 0, categorias: {}, caixinhas: state.configuration.caixinhas.map((box) => ({ ...box, saldo: state.boxBase[box.nome] || 0, progresso: 0 })) };
   state.transactions.forEach((item) => {
+    if (item.fonte === 'pluggy-bill') {
+      if (item.status === 'Pendente') result.aPagar += item.valor;
+      return;
+    }
     const effect = accountEffect(item);
     if (item.tipo === 'Receita') result.receitas += item.valor;
     if (item.tipo === 'Despesa') { result.despesas += item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor; }
@@ -433,7 +445,7 @@ function calculateSummary() {
     if (item.status === 'Pendente') {
       result.pendente += item.valor;
       if (['Receita', 'Resgate'].includes(item.tipo)) result.aReceber += item.valor;
-      if (item.tipo === 'Despesa') result.aPagar += item.valor;
+      if (item.tipo === 'Despesa' && item.fonte !== 'pluggy') result.aPagar += item.valor;
     }
     result.saldoPrevisto += effect;
     if (item.status === 'Pago') result.saldoAtual += effect;

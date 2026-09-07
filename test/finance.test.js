@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney } = require('../lib/finance');
-const { mapTransaction } = require('../lib/pluggy');
+const { mapTransaction, mapBills } = require('../lib/pluggy');
 
 test('calcula saldos sem abater despesas de caixinha da conta corrente', () => {
   const transactions = [
@@ -113,4 +113,24 @@ test('desconta estornos das despesas e da analise', () => {
   ];
   assert.equal(summarize(transactions).despesas, 70);
   assert.equal(buildAnalysis(transactions, '2026-09').months[2].total, 70);
+});
+
+test('mapeia fatura oficial e identifica pagamento completo', () => {
+  const account = { id: 'account-1', itemId: 'item-1', name: 'Visa', number: 'xxxx1234' };
+  const bills = mapBills([{ id: 'bill-1', dueDate: '2026-09-15T00:00:00Z', totalAmount: 500, payments: [{ amount: 500 }] }], account);
+  assert.equal(bills[0].total, 500);
+  assert.equal(bills[0].providerStatus, 'Pago');
+  assert.equal(bills[0].estimated, false);
+});
+
+test('estima fatura por mes previsto quando endpoint de faturas nao esta disponivel', () => {
+  const account = { id: 'account-1', itemId: 'item-1', name: 'Visa', creditData: { balanceDueDate: '2026-09-12' } };
+  const bills = mapBills([], account, [
+    { type: 'DEBIT', amount: 120, date: '2026-08-28', creditCardMetadata: { billForecastDate: '2026-09' } },
+    { type: 'CREDIT', amount: -20, date: '2026-08-29', operationType: 'ESTORNO', creditCardMetadata: { billForecastDate: '2026-09' } },
+    { type: 'CREDIT', amount: -100, date: '2026-09-12', operationType: 'PAGAMENTO_FATURA' }
+  ]);
+  assert.equal(bills[0].total, 100);
+  assert.equal(bills[0].dueDate, '2026-09-12');
+  assert.equal(bills[0].estimated, true);
 });

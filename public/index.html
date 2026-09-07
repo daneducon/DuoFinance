@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=22">
+  <link rel="stylesheet" href="/css/style.css?v=23">
   <title>DuoFinance | Visão geral</title>
 </head>
 
@@ -30,7 +30,7 @@
           </svg> Geral</button>
         <button class="nav-item" data-tab="transactions"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M12 5v14M5 12h14" />
-          </svg> Lançamentos</button>
+          </svg> Contas</button>
         <button class="nav-item" data-tab="analysis"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 19V9m7 10V5m7 14v-7" />
             <path d="M3 19h18" />
@@ -140,16 +140,16 @@
         <div class="view-heading">
           <div>
             <p class="eyebrow">ROTINA DO MÊS</p>
-            <h2>Contas e lançamentos</h2>
-            <p id="transaction-count">0 itens no período</p>
+            <h2>Contas a pagar</h2>
+            <p id="transaction-count">0 contas no período</p>
           </div>
         </div>
         <div class="list-tools panel"><label class="search-field"><span aria-hidden="true">⌕</span><input
               id="transaction-search" type="search"
               placeholder="Buscar por descrição, categoria ou responsável..."></label>
           <div class="filter-tabs" id="transaction-filters"><button class="active"
-              data-filter="all">Todos</button><button data-filter="Receita">Receitas</button><button
-              data-filter="Despesa">Despesas</button><button data-filter="boxes">Caixinhas</button></div>
+              data-filter="all">Todas</button><button data-filter="pending">Pendentes</button><button
+              data-filter="paid">Pagas</button></div>
         </div>
         <div class="detailed-list" id="transaction-list"></div>
       </section>
@@ -322,7 +322,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=22"></script>
+  <script type="module" src="/js/app.js?v=23"></script>
 </body>
 
 </html>

@@ -24,17 +24,22 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [manualTransactions, pluggyTransactions, configuration] = await Promise.all([
+  const [manualTransactions, pluggyTransactions, pluggyBills, configuration] = await Promise.all([
     sheets.listAllTransactions(),
     sheets.listPluggyTransactions(),
+    sheets.listPluggyBills(),
     sheets.getConfiguration()
   ]);
   const allTransactions = [...manualTransactions, ...pluggyTransactions];
-  const transactions = allTransactions.filter((item) => item.mesRef === month);
+  const monthTransactions = allTransactions.filter((item) => item.mesRef === month);
+  const monthBills = pluggyBills.filter((item) => item.mesRef === month);
+  const summary = summarize(monthTransactions, configuration.caixinhas, allTransactions);
+  summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
+    + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   send(res, 200, {
-    transactions,
+    transactions: [...monthTransactions, ...monthBills],
     configuration,
-    summary: summarize(transactions, configuration.caixinhas, allTransactions),
+    summary,
     cashFlow: calculateCashFlow(allTransactions, month),
     analysis: buildAnalysis(allTransactions, month)
   });
@@ -42,6 +47,10 @@ async function getFinances(req, res) {
 
 async function mutateFinances(req, res) {
   const { action, transaction, box, id } = req.body || {};
+  if (action === 'updateBillStatus') {
+    await sheets.updatePluggyBillStatus(String(id || '').replace(/^pluggy-bill:/, ''), String(req.body?.status || ''));
+    return send(res, 200, { updated: true });
+  }
   if (String(transaction?.id || id || '').startsWith('pluggy:')) return send(res, 403, { error: 'Lancamentos sincronizados nao podem ser alterados.' });
   if (action === 'create') {
     const item = validateTransaction({ ...transaction, id: randomUUID() });
