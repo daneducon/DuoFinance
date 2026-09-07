@@ -25,7 +25,8 @@ function demoSummary(transactions, boxes, boxTransactions = transactions) {
     if (item.tipo === 'Receita') result.receitas += item.valor;
     if (item.tipo === 'Despesa') {
       result.despesas += item.valor;
-      result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor;
+      const category = macroCategory(item.categoria);
+      result.categorias[category] = (result.categorias[category] || 0) + item.valor;
     }
     if (item.status === 'Pendente') {
       result.pendente += item.valor;
@@ -55,6 +56,17 @@ function demoSummary(transactions, boxes, boxTransactions = transactions) {
 
 function sameLabel(left, right) {
   return String(left || '').trim().toLocaleLowerCase('pt-BR') === String(right || '').trim().toLocaleLowerCase('pt-BR');
+}
+
+function macroCategory(value) {
+  const label = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const has = (terms) => terms.some((term) => label.includes(term));
+  if (has(['accommodation', 'housing', 'houseware', 'telecommunication', 'moradia', 'aluguel', 'condominio', 'energia', 'internet', 'agua', 'servicos domesticos'])) return 'Moradia e Contas';
+  if (has(['eating out', 'food and drinks', 'food delivery', 'groceries', 'alimentacao', 'mercado', 'restaurante', 'comida', 'delivery'])) return 'Alimentação';
+  if (has(['gas station', 'parking', 'taxi', 'ride-hailing', 'tolls', 'vehicle', 'tickets', 'transporte', 'combustivel', 'uber', 'onibus', 'pedagio'])) return 'Transporte';
+  if (has(['healthcare', 'pharmacy', 'saude', 'farmacia', 'bem-estar', 'pessoal'])) return 'Saúde e Bem-estar';
+  if (has(['cinema', 'theater', 'concert', 'clothing', 'digital services', 'electronics', 'office supplies', 'shopping', 'lazer', 'roupa', 'eletronico', 'assinatura', 'viagem'])) return 'Compras e Lazer';
+  return 'Educação e Financeiro';
 }
 
 function demoState(month) {
@@ -95,7 +107,10 @@ function demoAnalysis(transactions, selectedMonth) {
     const date = new Date(Date.UTC(year, monthNumber - 3 + index, 1));
     const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
     const expenses = transactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa');
-    const group = (field) => expenses.reduce((result, item) => ({ ...result, [item[field]]: (result[item[field]] || 0) + item.valor }), {});
+    const group = (field) => expenses.reduce((result, item) => {
+      const key = field === 'categoria' ? macroCategory(item[field]) : item[field];
+      return { ...result, [key]: (result[key] || 0) + item.valor };
+    }, field === 'categoria' ? Object.fromEntries(['Moradia e Contas', 'Alimentação', 'Transporte', 'Saúde e Bem-estar', 'Compras e Lazer', 'Educação e Financeiro'].map((category) => [category, 0])) : {});
     return { month, total: expenses.reduce((sum, item) => sum + item.valor, 0), categories: group('categoria'), responsibles: group('responsavel') };
   });
   return { months };

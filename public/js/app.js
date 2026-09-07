@@ -312,7 +312,9 @@ function renderAnalysis() {
   const current = values.at(-1) || 0;
   const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
   document.querySelector('#trend-metrics').innerHTML = `<div><span>Mês atual</span><strong>${money(current)}</strong></div><div><span>Média trimestral</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${money(Math.max(...values, 0))}</strong></div>`;
-  const responsibles = Object.entries(months.at(-1)?.responsibles || {}).sort((a, b) => b[1] - a[1]);
+  const responsibleValues = months.at(-1)?.responsibles || {};
+  const responsibleKeys = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])];
+  const responsibles = responsibleKeys.map((name) => [name, responsibleValues[name] || 0]);
   const responsibleTotal = responsibles.reduce((sum, entry) => sum + entry[1], 0) || 1;
   document.querySelector('#responsible-chart').innerHTML = responsibles.map(([name, value]) => `<div class="responsible-row"><div><strong>${responsibleName(name)}</strong><span>${Math.round(value / responsibleTotal * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / responsibleTotal * 100}%"></div></div></div>`).join('') || '<p class="muted-copy">Sem despesas no período.</p>';
 }
