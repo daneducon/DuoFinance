@@ -14,8 +14,8 @@ module.exports = async function handler(req, res) {
       error.statusCode = 400;
       throw error;
     }
-    const [items, accounts, transactions] = await Promise.all([
-      sheets.listPluggyItems(), sheets.listPluggyAccounts(), sheets.listPluggyTransactions(month)
+    const [items, accounts, transactions, bills] = await Promise.all([
+      sheets.listPluggyItems(), sheets.listPluggyAccounts(), sheets.listPluggyTransactions(month), sheets.listPluggyBills(month)
     ]);
     const institutions = new Map(items.map((item) => [item.id, item]));
     const cards = accounts.filter((account) => account.type === 'CREDIT' && account.subtype === 'CREDIT_CARD').map((account) => ({
@@ -24,7 +24,7 @@ module.exports = async function handler(req, res) {
     const bankBalance = accounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
     send(res, 200, {
       configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET),
-      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bankBalance
+      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, bankBalance
     });
   } catch (error) {
     errorResponse(res, error);

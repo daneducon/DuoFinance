@@ -116,7 +116,7 @@ export async function getFinances(month) {
 }
 
 export async function getCards(month) {
-  if (session()?.demo) return { configured: false, items: [], cards: [], transactions: [], bankBalance: 0 };
+  if (session()?.demo) return { configured: false, items: [], cards: [], transactions: [], bills: [], bankBalance: 0 };
   return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}`);
 }
 

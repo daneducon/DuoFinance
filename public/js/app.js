@@ -5,7 +5,7 @@ const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
   summary: null, cashFlow: null, analysis: { months: [] }, boxBase: {},
-  transactionFilter: 'all', search: '', analysisFilter: 'all', cardsData: { items: [], cards: [], transactions: [], bankBalance: 0 }, selectedCardId: 'all'
+  transactionFilter: 'all', search: '', analysisFilter: 'all', cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
   month: document.querySelector('#month-picker'), dialog: document.querySelector('#transaction-dialog'),
@@ -67,7 +67,7 @@ async function load() {
   setLoading(true);
   try {
     const data = await getFinances(elements.month.value);
-    const cardsData = await getCards(elements.month.value).catch((error) => ({ error: error.message, items: [], cards: [], transactions: [], bankBalance: 0 }));
+    const cardsData = await getCards(elements.month.value).catch((error) => ({ error: error.message, items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }));
     state.transactions = data.transactions || [];
     state.configuration = data.configuration || state.configuration;
     state.summary = data.summary || calculateSummary();
@@ -242,9 +242,10 @@ function renderTransactions() {
 function renderCards() {
   const data = state.cardsData || {};
   const cards = data.cards || [];
+  const bills = data.bills || [];
   document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
   document.querySelector('#credit-limit-total').textContent = money(cards.reduce((sum, card) => sum + card.creditLimit, 0));
-  document.querySelector('#credit-limit-used').textContent = money(cards.reduce((sum, card) => sum + card.usedLimit, 0));
+  document.querySelector('#month-bill-total').textContent = money(bills.reduce((sum, bill) => sum + bill.valor, 0));
   document.querySelector('#credit-limit-available').textContent = money(cards.reduce((sum, card) => sum + card.availableLimit, 0));
   const status = document.querySelector('#pluggy-status');
   status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s).` : data.hasConfiguredItems ? 'Clique em Sincronizar dados para fazer a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel para importar seus dados.');
@@ -252,8 +253,11 @@ function renderCards() {
   const grid = document.querySelector('#connected-card-grid');
   grid.innerHTML = cards.length ? cards.map((card, index) => {
     const used = card.creditLimit ? Math.min(100, card.usedLimit / card.creditLimit * 100) : 0;
+    const cardBills = bills.filter((bill) => bill.accountId === card.id);
+    const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
+    const billStatus = cardBills.length && cardBills.every((bill) => bill.status === 'Pago') ? 'Paga' : 'Pendente';
     const active = state.selectedCardId === card.id;
-    return `<button class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><div class="card-limit"><span>Usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></button>`;
+    return `<button class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><div class="card-bill"><span>Fatura do mês</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? billStatus : ''}</small></div><div class="card-limit"><span>Limite usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></button>`;
   }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
   renderCardTransactions();
 }
