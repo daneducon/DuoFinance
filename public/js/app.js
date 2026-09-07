@@ -1,11 +1,11 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, mutate, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, createPluggyConnectToken, syncPluggy, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
   summary: null, cashFlow: null, analysis: { months: [] }, boxBase: {},
-  transactionFilter: 'all', search: '', analysisFilter: 'all'
+  transactionFilter: 'all', search: '', analysisFilter: 'all', cardsData: { items: [], cards: [], transactions: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
   month: document.querySelector('#month-picker'), dialog: document.querySelector('#transaction-dialog'),
@@ -14,7 +14,9 @@ const elements = {
   chartEmpty: document.querySelector('#chart-empty'), toast: document.querySelector('#toast'),
   offline: document.querySelector('#offline-banner'), insight: document.querySelector('#insight-text')
 };
-const tabs = { general: 'Visão geral', transactions: 'Lançamentos', analysis: 'Análises', boxes: 'Caixinhas' };
+elements.boxDialog = document.querySelector('#box-dialog');
+elements.boxForm = document.querySelector('#box-form');
+const tabs = { general: 'Visão geral', transactions: 'Lançamentos', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
 
 elements.month.value = new Date().toISOString().slice(0, 7);
 updateMonthLabel();
@@ -27,6 +29,9 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
 document.querySelector('#logout-button').addEventListener('click', () => { clearSession(); window.location.assign('/login'); });
 document.querySelector('#analyze-button').addEventListener('click', generateInsight);
+document.querySelector('#connect-pluggy-button').addEventListener('click', connectPluggy);
+document.querySelector('#sync-pluggy-button').addEventListener('click', synchronizePluggy);
+document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
 document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
 document.querySelector('#analysis-filters').addEventListener('click', handleAnalysisFilter);
@@ -34,9 +39,13 @@ elements.month.addEventListener('change', () => { updateMonthLabel(); load(); })
 document.querySelector('#previous-month').addEventListener('click', () => shiftMonth(-1));
 document.querySelector('#next-month').addEventListener('click', () => shiftMonth(1));
 elements.form.addEventListener('submit', saveTransaction);
+elements.boxForm.addEventListener('submit', saveBox);
 elements.form.elements.tipo.addEventListener('change', enforceDepositStatus);
 elements.list.addEventListener('click', handleTransactionAction);
+elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
+elements.boxDialog.addEventListener('click', (event) => { if (event.target === elements.boxDialog) elements.boxDialog.close(); });
+document.querySelectorAll('[data-close-box-dialog]').forEach((button) => button.addEventListener('click', () => elements.boxDialog.close()));
 window.addEventListener('hashchange', () => switchTab(location.hash.slice(1), false));
 window.addEventListener('online', async () => {
   updateConnectivity();
@@ -59,11 +68,13 @@ async function load() {
   setLoading(true);
   try {
     const data = await getFinances(elements.month.value);
+    const cardsData = await getCards(elements.month.value).catch((error) => ({ error: error.message, items: [], cards: [], transactions: [], bankBalance: 0 }));
     state.transactions = data.transactions || [];
     state.configuration = data.configuration || state.configuration;
     state.summary = data.summary || calculateSummary();
     state.cashFlow = data.cashFlow || calculateLocalCashFlow();
     state.analysis = data.analysis || { months: [] };
+    state.cardsData = cardsData;
     state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
     render();
     if (data.offline) notify('Exibindo os últimos dados salvos.');
@@ -90,6 +101,7 @@ function render() {
   renderBoxes(summary.caixinhas || []);
   renderTransactions();
   renderAnalysis();
+  renderCards();
   populateSelects();
 }
 
@@ -144,21 +156,68 @@ function renderCashFlow() {
 }
 
 function renderCategoryChart(summary) {
-  const categories = Object.entries(summary.categorias || {}).sort((a, b) => b[1] - a[1]).slice(0, 7);
-  const maximum = categories[0]?.[1] || 1;
+  const categories = Object.entries(summary.categorias || {}).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 7);
+  const total = Object.values(summary.categorias || {}).reduce((sum, value) => sum + Math.max(0, value), 0) || 1;
   elements.chart.hidden = categories.length === 0;
   elements.chartEmpty.hidden = categories.length > 0;
-  elements.chart.innerHTML = categories.map(([name, value]) => `<div class="category-row"><span title="${escapeHtml(name)}">${escapeHtml(name)}</span><div class="bar-track"><div class="bar" style="width:${Math.max(2, value / maximum * 100)}%"></div></div><strong>${money(value)}</strong></div>`).join('');
+  elements.chart.innerHTML = categories.map(([name, value]) => `<div class="responsible-row"><div><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong><span>${Math.round(value / total * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / total * 100}%"></div></div></div>`).join('');
   const expenses = state.transactions.filter((item) => item.tipo === 'Despesa').length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
 function renderBoxes(boxes) {
   document.querySelector('#boxes-total').textContent = money(boxes.reduce((sum, box) => sum + box.saldo, 0));
-  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><small>${Math.round(box.progresso || 0)}%</small></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div></article>`;
+  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div></article>`;
   elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
   const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
   document.querySelector('#favorite-box-list').innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
+}
+
+function handleBoxAction(event) {
+  const name = event.target.closest('[data-edit-box]')?.dataset.editBox;
+  if (!name) return;
+  const box = state.configuration.caixinhas.find((item) => item.nome === name);
+  if (!box) return;
+  elements.boxForm.elements.currentName.value = box.nome;
+  elements.boxForm.elements.nome.value = box.nome;
+  elements.boxForm.elements.meta.value = box.meta;
+  elements.boxDialog.showModal();
+  setTimeout(() => elements.boxForm.elements.nome.focus(), 0);
+}
+
+async function saveBox(event) {
+  event.preventDefault();
+  const form = new FormData(elements.boxForm);
+  const box = { currentName: form.get('currentName').trim(), nome: form.get('nome').trim(), meta: Number(form.get('meta')) };
+  const button = document.querySelector('#save-box-button');
+  button.disabled = true;
+  try {
+    const result = await updateBox(box);
+    elements.boxDialog.close();
+    if (result.queued) {
+      applyLocalBox(box);
+      notify('Alteração salva para sincronizar depois.');
+    } else {
+      notify('Caixinha atualizada.');
+      await load();
+    }
+  } catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; }
+}
+
+function applyLocalBox(box) {
+  state.configuration.caixinhas = state.configuration.caixinhas.map((item) => sameLabel(item.nome, box.currentName) ? { ...item, nome: box.nome, meta: box.meta } : item);
+  state.transactions = state.transactions.map((item) => ({
+    ...item,
+    categoria: ['Depósito', 'Depósito Caixinha'].includes(item.tipo) && sameLabel(item.categoria, box.currentName) ? box.nome : item.categoria,
+    origem: sameLabel(item.origem, box.currentName) ? box.nome : item.origem
+  }));
+  if (box.currentName !== box.nome) {
+    state.boxBase[box.nome] = state.boxBase[box.currentName] || 0;
+    delete state.boxBase[box.currentName];
+  }
+  state.summary = calculateSummary();
+  render();
 }
 
 function renderTransactions() {
@@ -167,15 +226,81 @@ function renderTransactions() {
     const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
     const matchesType = state.transactionFilter === 'all' || item.tipo === state.transactionFilter || (state.transactionFilter === 'boxes' && ['Depósito', 'Depósito Caixinha', 'Resgate'].includes(item.tipo));
     return matchesSearch && matchesType;
-  }).sort((a, b) => a.data.localeCompare(b.data));
+  }).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
   document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'item' : 'itens'} no período`;
   elements.list.innerHTML = filtered.length ? filtered.map((item) => {
-    const positive = ['Receita', 'Resgate'].includes(item.tipo);
+    const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
     const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+    const imported = item.fonte === 'pluggy';
     const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
     const paid = item.status === 'Pago';
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'}"><button class="status-toggle ${paid ? 'paid' : ''}" data-status="${escapeHtml(item.id)}" ${deposit ? 'disabled title="Depósitos são sempre pagos"' : `title="Marcar como ${paid ? 'pendente' : 'pago'}"`} aria-label="${paid ? 'Pago. Clique para marcar como pendente' : 'Pendente. Clique para marcar como pago'}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span></div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div><div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div></article>`;
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${imported ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${imported ? 'Status sincronizado pela instituição' : deposit ? 'Depósitos são sempre pagos' : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${imported ? '<span class="source-tag">Pluggy</span>' : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div>${imported ? '<div class="transaction-actions synced-lock">Sincronizado</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
   }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
+}
+
+function renderCards() {
+  const data = state.cardsData || {};
+  const cards = data.cards || [];
+  document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
+  document.querySelector('#credit-limit-total').textContent = money(cards.reduce((sum, card) => sum + card.creditLimit, 0));
+  document.querySelector('#credit-limit-used').textContent = money(cards.reduce((sum, card) => sum + card.usedLimit, 0));
+  document.querySelector('#credit-limit-available').textContent = money(cards.reduce((sum, card) => sum + card.availableLimit, 0));
+  const status = document.querySelector('#pluggy-status');
+  status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) conectada(s). Dados atualizados automaticamente.` : 'Conecte uma instituição para sincronizar seus dados.');
+  status.classList.toggle('error-copy', Boolean(data.error));
+  const grid = document.querySelector('#connected-card-grid');
+  grid.innerHTML = cards.length ? cards.map((card, index) => {
+    const used = card.creditLimit ? Math.min(100, card.usedLimit / card.creditLimit * 100) : 0;
+    const active = state.selectedCardId === card.id;
+    return `<button class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><div class="card-limit"><span>Usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></button>`;
+  }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
+  renderCardTransactions();
+}
+
+function renderCardTransactions() {
+  const selected = state.cardsData.cards?.find((card) => card.id === state.selectedCardId);
+  const transactions = (state.cardsData.transactions || []).filter((item) => !selected || item.accountId === selected.id).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
+  document.querySelector('#selected-card-title').textContent = selected ? `Gastos em ${selected.name}` : 'Gastos nos cartões';
+  const total = transactions.reduce((sum, item) => sum + (item.tipo === 'Estorno' ? -item.valor : item.valor), 0);
+  document.querySelector('#card-expense-total').textContent = money(total);
+  document.querySelector('#card-transaction-list').innerHTML = transactions.length ? transactions.map((item) => `<div class="card-transaction"><div><strong>${escapeHtml(item.descricao)}</strong><span>${fullDate(item.data)} · ${escapeHtml(item.categoria)}</span></div><strong class="${item.tipo === 'Estorno' ? 'income-value' : 'expense-value'}">${item.tipo === 'Estorno' ? '+' : '−'} ${money(item.valor)}</strong></div>`).join('') : '<p class="muted-copy">Nenhum gasto encontrado neste mês.</p>';
+}
+
+function selectCard(event) {
+  const id = event.target.closest('[data-card-id]')?.dataset.cardId;
+  if (!id) return;
+  state.selectedCardId = state.selectedCardId === id ? 'all' : id;
+  renderCards();
+}
+
+async function connectPluggy() {
+  const button = document.querySelector('#connect-pluggy-button');
+  button.disabled = true;
+  try {
+    if (!window.PluggyConnect) throw new Error('O conector bancário não foi carregado.');
+    const { accessToken } = await createPluggyConnectToken();
+    new window.PluggyConnect({
+      connectToken: accessToken, products: ['ACCOUNTS', 'CREDIT_CARDS', 'TRANSACTIONS'], countries: ['BR'], language: 'pt', theme: 'dark',
+      onSuccess: async (data) => {
+        try {
+          const itemId = data?.item?.id || data?.id;
+          notify('Instituição conectada. Sincronizando dados...');
+          if (itemId) await syncPluggy(itemId);
+          await load();
+        } catch (error) { notify(error.message, true); }
+      },
+      onError: (error) => notify(error?.message || 'Não foi possível conectar a instituição.', true)
+    }).init();
+  } catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; }
+}
+
+async function synchronizePluggy() {
+  const button = document.querySelector('#sync-pluggy-button');
+  button.disabled = true;
+  try { await syncPluggy(); await load(); notify('Dados bancários sincronizados.'); }
+  catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; }
 }
 
 function renderAnalysis() {
@@ -224,6 +349,7 @@ function populateSelects() {
 }
 
 function openForm(transaction = null) {
+  if (transaction?.fonte === 'pluggy') return notify('Este lançamento é atualizado automaticamente pela instituição.', true);
   elements.form.reset();
   populateSelects();
   document.querySelector('#dialog-title').textContent = transaction ? 'Editar lançamento' : 'Novo lançamento';
@@ -300,7 +426,7 @@ async function handleTransactionAction(event) {
 
 async function toggleStatus(id, button) {
   const transaction = state.transactions.find((item) => item.id === id);
-  if (!transaction) return;
+  if (!transaction || transaction.fonte === 'pluggy') return;
   const status = transaction.status === 'Pago' ? 'Pendente' : 'Pago';
   button.disabled = true;
   try {
@@ -326,6 +452,7 @@ function calculateSummary() {
     const effect = accountEffect(item);
     if (item.tipo === 'Receita') result.receitas += item.valor;
     if (item.tipo === 'Despesa') { result.despesas += item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor; }
+    if (item.tipo === 'Estorno') { result.despesas -= item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) - item.valor; }
     if (item.status === 'Pendente') {
       result.pendente += item.valor;
       if (['Receita', 'Resgate'].includes(item.tipo)) result.aReceber += item.valor;

@@ -2,7 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize, validateTransaction, calculateCashFlow, buildAnalysis, parseMoney } = require('../lib/finance');
+const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney } = require('../lib/finance');
+const { mapTransaction } = require('../lib/pluggy');
 
 test('calcula saldos sem abater despesas de caixinha da conta corrente', () => {
   const transactions = [
@@ -54,6 +55,14 @@ test('todo novo deposito e registrado como pago', () => {
   assert.equal(deposit.dataPg, '2026-09-06');
 });
 
+test('valida edicao de nome e meta da caixinha', () => {
+  assert.deepEqual(validateBox({ currentName: 'Viagem', nome: 'Lua de mel', meta: '12.500,50' }), {
+    currentName: 'Viagem', nome: 'Lua de mel', meta: 12500.5
+  });
+  assert.throws(() => validateBox({ currentName: 'Viagem', nome: '', meta: 100 }), /nome valido/);
+  assert.throws(() => validateBox({ currentName: 'Viagem', nome: 'Reserva', meta: -1 }), /negativa/);
+});
+
 test('identifica intervalo de caixa negativo no mes', () => {
   const transactions = [
     { tipo: 'Receita', valor: 500, data: '2026-08-20', origem: 'Conta Corrente' },
@@ -84,4 +93,23 @@ test('separa valores mensais a receber e a pagar', () => {
   const summary = summarize(pending);
   assert.equal(summary.aReceber, 900);
   assert.equal(summary.aPagar, 350);
+});
+
+test('mapeia compra e estorno da Pluggy sem importar pagamento de fatura', () => {
+  const account = { id: 'account-1', itemId: 'item-1', name: 'Visa', number: 'xxxx1234' };
+  const purchase = mapTransaction({ id: 'tx-1', type: 'DEBIT', amount: 89.9, date: '2026-09-07T12:00:00Z', status: 'POSTED', description: 'Mercado', creditCardMetadata: { installmentNumber: 2, totalInstallments: 3 } }, account);
+  assert.equal(purchase.tipo, 'Despesa');
+  assert.equal(purchase.accountName, 'Visa • 1234');
+  assert.equal(purchase.parcelaAtual, 2);
+  assert.equal(mapTransaction({ id: 'tx-2', type: 'CREDIT', amount: -50, date: '2026-09-08', description: 'Estorno' }, account).tipo, 'Estorno');
+  assert.equal(mapTransaction({ id: 'tx-3', operationType: 'PAGAMENTO_FATURA' }, account), null);
+});
+
+test('desconta estornos das despesas e da analise', () => {
+  const transactions = [
+    { tipo: 'Despesa', valor: 100, mesRef: '2026-09', categoria: 'Lazer', responsavel: 'Nós', origem: 'Visa' },
+    { tipo: 'Estorno', valor: 30, mesRef: '2026-09', categoria: 'Lazer', responsavel: 'Nós', origem: 'Visa' }
+  ];
+  assert.equal(summarize(transactions).despesas, 70);
+  assert.equal(buildAnalysis(transactions, '2026-09').months[2].total, 70);
 });

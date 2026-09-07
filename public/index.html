@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=19">
+  <link rel="stylesheet" href="/css/style.css?v=21">
   <title>DuoFinance | Visão geral</title>
 </head>
 
@@ -40,6 +40,10 @@
             <circle cx="12" cy="12" r="2.5" />
             <path d="M7 9H5m14 6h-2" />
           </svg> Caixinhas</button>
+        <button class="nav-item" data-tab="cards"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <path d="M3 10h18M7 15h3" />
+          </svg> Cartões</button>
       </nav>
       <div class="sidebar-foot">
         <div class="couple-avatar"><span>D</span><span>T</span></div>
@@ -225,6 +229,34 @@
         </div>
         <div class="all-box-grid" id="box-grid"></div>
       </section>
+
+      <section class="tab-view" data-view="cards">
+        <section class="cards-hero">
+          <div class="cards-hero-title">
+            <p class="eyebrow">VIDA FINANCEIRA CONECTADA</p>
+            <h2>Cartões e contas</h2>
+            <p id="pluggy-status">Conecte uma instituição para sincronizar seus dados.</p>
+          </div>
+          <div class="cards-actions">
+            <button class="button ghost" id="sync-pluggy-button" type="button">Sincronizar</button>
+            <button class="button primary" id="connect-pluggy-button" type="button">＋ Conectar instituição</button>
+          </div>
+        </section>
+        <section class="card-metrics" aria-label="Resumo de cartões e contas">
+          <article><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong></article>
+          <article><span>Limite total</span><strong id="credit-limit-total">R$ 0,00</strong></article>
+          <article><span>Limite usado / fatura</span><strong id="credit-limit-used">R$ 0,00</strong></article>
+          <article><span>Limite disponível</span><strong id="credit-limit-available">R$ 0,00</strong></article>
+        </section>
+        <div class="view-heading cards-heading">
+          <div><p class="eyebrow">CARTEIRA</p><h2>Cartões conectados</h2><p>Clique em um cartão para ver os gastos do mês.</p></div>
+        </div>
+        <div class="connected-card-grid" id="connected-card-grid"></div>
+        <article class="panel card-expenses-panel">
+          <div class="panel-head"><div><p class="eyebrow">MÊS SELECIONADO</p><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
+          <div class="card-transaction-list" id="card-transaction-list"></div>
+        </article>
+      </section>
     </main>
   </div>
 
@@ -273,8 +305,26 @@
     </form>
   </dialog>
 
+  <dialog id="box-dialog">
+    <form id="box-form">
+      <div class="dialog-head">
+        <div>
+          <p class="eyebrow">OBJETIVO</p>
+          <h2>Editar caixinha</h2>
+        </div><button type="button" class="icon-button" data-close-box-dialog aria-label="Fechar">×</button>
+      </div>
+      <input type="hidden" name="currentName">
+      <div class="form-grid">
+        <label class="field full"><span>Nome</span><input name="nome" maxlength="60" required></label>
+        <label class="field full"><span>Meta</span><input name="meta" type="number" min="0" step="0.01" required></label>
+      </div>
+      <div class="dialog-actions"><button type="button" class="button ghost" data-close-box-dialog>Cancelar</button><button class="button primary" type="submit" id="save-box-button">Salvar</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=19"></script>
+  <script src="https://cdn.pluggy.ai/pluggy-connect/v2.8.2/pluggy-connect.js"></script>
+  <script type="module" src="/js/app.js?v=21"></script>
 </body>
 
 </html>

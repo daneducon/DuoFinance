@@ -115,6 +115,21 @@ export async function getFinances(month) {
   }
 }
 
+export async function getCards(month) {
+  if (session()?.demo) return { configured: false, items: [], cards: [], transactions: [], bankBalance: 0 };
+  return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}`);
+}
+
+export async function createPluggyConnectToken(itemId) {
+  if (session()?.demo) throw new Error('Conexões bancárias não estão disponíveis na demonstração.');
+  return request('/api/pluggy/connect-token', { method: 'POST', body: JSON.stringify(itemId ? { itemId } : {}) });
+}
+
+export async function syncPluggy(itemId) {
+  if (session()?.demo) return { synced: false };
+  return request('/api/pluggy/sync', { method: 'POST', body: JSON.stringify(itemId ? { itemId } : {}) });
+}
+
 export async function mutate(action, transaction) {
   const payload = { action, ...(action === 'delete' ? { id: transaction.id } : { transaction }) };
   if (session()?.demo) {
@@ -122,6 +137,35 @@ export async function mutate(action, transaction) {
     if (action === 'create') saved.transactions.push({ ...transaction, id: crypto.randomUUID() });
     if (action === 'update') saved.transactions = saved.transactions.map((item) => item.id === transaction.id ? transaction : item);
     if (action === 'delete') saved.transactions = saved.transactions.filter((item) => item.id !== transaction.id);
+    localStorage.setItem('duofinance_demo_data', JSON.stringify(saved));
+    return { demo: true };
+  }
+  try {
+    return await request('/api/financas', { method: 'POST', body: JSON.stringify(payload) });
+  } catch (error) {
+    if (!navigator.onLine || error instanceof TypeError) {
+      await queueAdd({ payload, token: session()?.token, createdAt: Date.now() });
+      navigator.serviceWorker?.ready.then((registration) => registration.sync?.register('sync-finances')).catch(() => {});
+      return { queued: true };
+    }
+    throw error;
+  }
+}
+
+export async function updateBox(box) {
+  const payload = { action: 'updateBox', box };
+  if (session()?.demo) {
+    const saved = JSON.parse(localStorage.getItem('duofinance_demo_data') || 'null') || demoData();
+    const duplicate = saved.configuration.caixinhas.some((item) => sameLabel(item.nome, box.nome) && !sameLabel(item.nome, box.currentName));
+    if (duplicate) throw new Error('Já existe uma caixinha com esse nome.');
+    saved.configuration.caixinhas = saved.configuration.caixinhas.map((item) => sameLabel(item.nome, box.currentName) ? { ...item, nome: box.nome, meta: box.meta } : item);
+    if (box.currentName !== box.nome) {
+      saved.transactions = saved.transactions.map((item) => ({
+        ...item,
+        categoria: ['Depósito', 'Depósito Caixinha'].includes(item.tipo) && sameLabel(item.categoria, box.currentName) ? box.nome : item.categoria,
+        origem: sameLabel(item.origem, box.currentName) ? box.nome : item.origem
+      }));
+    }
     localStorage.setItem('duofinance_demo_data', JSON.stringify(saved));
     return { demo: true };
   }

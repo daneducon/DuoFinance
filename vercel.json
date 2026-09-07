@@ -1,6 +1,10 @@
 {
   "cleanUrls": true,
   "trailingSlash": false,
+  "functions": {
+    "api/pluggy/sync.js": { "maxDuration": 60 },
+    "api/pluggy/webhook.js": { "maxDuration": 60 }
+  },
   "headers": [
     {
       "source": "/(.*)",

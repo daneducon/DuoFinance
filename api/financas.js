@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, toSheetRow, summarize, calculateCashFlow, buildAnalysis } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -24,10 +24,12 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [allTransactions, configuration] = await Promise.all([
+  const [manualTransactions, pluggyTransactions, configuration] = await Promise.all([
     sheets.listAllTransactions(),
+    sheets.listPluggyTransactions(),
     sheets.getConfiguration()
   ]);
+  const allTransactions = [...manualTransactions, ...pluggyTransactions];
   const transactions = allTransactions.filter((item) => item.mesRef === month);
   send(res, 200, {
     transactions,
@@ -39,7 +41,8 @@ async function getFinances(req, res) {
 }
 
 async function mutateFinances(req, res) {
-  const { action, transaction, id } = req.body || {};
+  const { action, transaction, box, id } = req.body || {};
+  if (String(transaction?.id || id || '').startsWith('pluggy:')) return send(res, 403, { error: 'Lancamentos sincronizados nao podem ser alterados.' });
   if (action === 'create') {
     const item = validateTransaction({ ...transaction, id: randomUUID() });
     await sheets.appendTransaction(toSheetRow(item));
@@ -57,6 +60,14 @@ async function mutateFinances(req, res) {
     if (!row) return send(res, 404, { error: 'Lancamento nao encontrado.' });
     await sheets.deleteTransaction(row);
     return send(res, 200, { deleted: true });
+  }
+  if (action === 'updateBox') {
+    const item = validateBox(box || {});
+    const configuration = await sheets.getConfiguration();
+    const duplicate = configuration.caixinhas.some((entry) => entry.nome.toLocaleLowerCase('pt-BR') === item.nome.toLocaleLowerCase('pt-BR') && entry.nome.toLocaleLowerCase('pt-BR') !== item.currentName.toLocaleLowerCase('pt-BR'));
+    if (duplicate) return send(res, 409, { error: 'Ja existe uma caixinha com esse nome.' });
+    await sheets.updateBox(item);
+    return send(res, 200, { box: item });
   }
   return send(res, 400, { error: 'Acao invalida.' });
 }
