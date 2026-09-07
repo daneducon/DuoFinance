@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth } = require('../lib/finance');
+const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible } = require('../lib/finance');
 const { mapTransaction, mapBills } = require('../lib/pluggy');
 
 test('calcula saldos sem abater despesas de caixinha da conta corrente', () => {
@@ -229,4 +229,11 @@ test('mantem total da analise igual ao resumo usando faturas', () => {
   const analysis = buildAnalysis(transactions, '2026-09');
   assert.equal(analysis.months[2].total, summary.despesas);
   assert.equal(analysis.months[2].total, 1850);
+});
+
+test('atribui os responsaveis padrao aos cartoes conhecidos', () => {
+  assert.equal(defaultCardResponsible('SANTANDER ELITE MASTER'), 'Ela');
+  assert.equal(defaultCardResponsible('ultraviolet-black'), 'Ele');
+  assert.equal(defaultCardResponsible('ITAU VISA PLATINUM'), 'Ele');
+  assert.equal(defaultCardResponsible('Cartão compartilhado'), 'Nós');
 });

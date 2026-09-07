@@ -150,6 +150,11 @@ export async function updateBill(id, value, source) {
   return request('/api/financas', { method: 'POST', body: JSON.stringify({ action: 'updateBill', id, value, source }) });
 }
 
+export async function updateCardResponsible(accountId, responsavel) {
+  if (session()?.demo) return { demo: true };
+  return request('/api/pluggy/cards', { method: 'POST', body: JSON.stringify({ accountId, responsavel }) });
+}
+
 export async function mutate(action, transaction) {
   const payload = { action, ...(action === 'delete' ? { id: transaction.id } : { transaction }) };
   if (session()?.demo) {

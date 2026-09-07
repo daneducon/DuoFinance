@@ -6,9 +6,13 @@ const { nextMonth } = require('../../lib/finance');
 const sheets = require('../../lib/sheets');
 
 module.exports = async function handler(req, res) {
-  if (req.method !== 'GET') return methodNotAllowed(res, ['GET']);
+  if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed(res, ['GET', 'POST']);
   try {
     await verifyRequest(req);
+    if (req.method === 'POST') {
+      await sheets.updatePluggyAccountResponsible(String(req.body?.accountId || ''), String(req.body?.responsavel || ''));
+      return send(res, 200, { updated: true });
+    }
     const month = String(req.query.mes || '');
     if (!/^\d{4}-\d{2}$/.test(month)) {
       const error = new Error('Informe o mes no formato YYYY-MM.');

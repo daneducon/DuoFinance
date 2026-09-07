@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, syncPluggy, updateBillStatus, updateBill, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
@@ -33,6 +33,7 @@ document.querySelector('#logout-button').addEventListener('click', () => { clear
 document.querySelector('#analyze-button').addEventListener('click', generateInsight);
 document.querySelector('#sync-pluggy-button').addEventListener('click', synchronizePluggy);
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
+document.querySelector('#connected-card-grid').addEventListener('change', changeCardResponsible);
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
 document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
 document.querySelector('#analysis-filters').addEventListener('click', handleAnalysisFilter);
@@ -271,7 +272,7 @@ function renderCards() {
     const situations = [...new Set(cardBills.map((bill) => bill.situacao))];
     const billStatus = situations.length === 1 ? situations[0] : situations.includes('Aberta') ? 'Aberta' : situations.includes('Projetada') ? 'Projetada' : 'Pendente';
     const active = state.selectedCardId === card.id;
-    return `<button class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><div class="card-bill"><span>Fatura de ${spendingLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? `${billStatus} · paga em ${paymentLabel}` : ''}</small></div><div class="card-limit"><span>Limite usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></button>`;
+    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${spendingLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? `${billStatus} · paga em ${paymentLabel}` : ''}</small></div><div class="card-limit"><span>Limite usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></article>`;
   }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
   renderCardTransactions();
 }
@@ -286,10 +287,22 @@ function renderCardTransactions() {
 }
 
 function selectCard(event) {
+  if (event.target.closest('[data-card-owner]')) return;
   const id = event.target.closest('[data-card-id]')?.dataset.cardId;
   if (!id) return;
   state.selectedCardId = state.selectedCardId === id ? 'all' : id;
   renderCards();
+}
+
+async function changeCardResponsible(event) {
+  const select = event.target.closest('[data-card-owner]');
+  if (!select) return;
+  select.disabled = true;
+  try {
+    await updateCardResponsible(select.dataset.cardOwner, select.value);
+    await load();
+    notify('Responsável do cartão atualizado.');
+  } catch (error) { notify(error.message, true); select.disabled = false; }
 }
 
 async function synchronizePluggy() {
