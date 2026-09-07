@@ -81,7 +81,7 @@ test('agrupa despesas dos ultimos tres meses para analise', () => {
     { tipo: 'Despesa', valor: 250, mesRef: '2026-09', categoria: 'Moradia', responsavel: 'Ele' }
   ], '2026-09');
   assert.deepEqual(analysis.months.map((month) => month.month), ['2026-07', '2026-08', '2026-09']);
-  assert.equal(analysis.months[2].categories.Moradia, 250);
+  assert.equal(analysis.months[2].categories['Moradia e Contas'], 250);
 });
 
 test('separa valores mensais a receber e a pagar', () => {
@@ -218,4 +218,15 @@ test('analise sempre oferece somente as seis categorias macros', () => {
   assert.equal(Object.keys(analysis.months[2].categories).length, 6);
   assert.equal(analysis.months[2].categories['Alimentação'], 150);
   assert.equal(analysis.months[2].responsibles.Ela, 50);
+});
+
+test('mantem total da analise igual ao resumo usando faturas', () => {
+  const transactions = [
+    { tipo: 'Despesa', valor: 600, status: 'Pago', mesRef: '2026-09', categoria: 'Moradia', responsavel: 'Ele', origem: 'Conta Corrente' },
+    { tipo: 'Pagamento Fatura', valor: 1250, status: 'Pendente', mesRef: '2026-09', categoria: 'Fatura de cartão', responsavel: 'Nós', fontePagamento: 'Conta Corrente' }
+  ];
+  const summary = summarize(transactions);
+  const analysis = buildAnalysis(transactions, '2026-09');
+  assert.equal(analysis.months[2].total, summary.despesas);
+  assert.equal(analysis.months[2].total, 1850);
 });

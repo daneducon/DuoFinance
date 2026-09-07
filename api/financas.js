@@ -24,13 +24,12 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [manualTransactions, pluggyTransactions, pluggyBills, configuration] = await Promise.all([
+  const [manualTransactions, pluggyBills, configuration] = await Promise.all([
     sheets.listAllTransactions(),
-    sheets.listPluggyTransactions(),
     sheets.listPluggyBills(),
     sheets.getConfiguration()
   ]);
-  const allTransactions = [...manualTransactions, ...pluggyTransactions];
+  const accountingTransactions = [...manualTransactions, ...pluggyBills];
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
   const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
@@ -41,7 +40,7 @@ async function getFinances(req, res) {
     configuration,
     summary,
     cashFlow: calculateCashFlow([...manualTransactions, ...monthBills], month),
-    analysis: buildAnalysis(allTransactions, month)
+    analysis: buildAnalysis(accountingTransactions, month)
   });
 }
 

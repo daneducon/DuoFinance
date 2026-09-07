@@ -165,7 +165,7 @@ function renderCategoryChart(summary) {
   elements.chart.hidden = categories.length === 0;
   elements.chartEmpty.hidden = categories.length > 0;
   elements.chart.innerHTML = categories.map(([name, value]) => `<div class="responsible-row"><div><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong><span>${Math.round(value / total * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / total * 100}%"></div></div></div>`).join('');
-  const expenses = state.transactions.filter((item) => item.tipo === 'Despesa').length;
+  const expenses = state.transactions.filter((item) => ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
