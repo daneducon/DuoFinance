@@ -229,7 +229,7 @@ function renderTransactions() {
   const filtered = state.transactions.filter((item) => {
     const accountPayable = item.fonte === 'pluggy-bill' || (item.tipo === 'Despesa' && item.fonte !== 'pluggy');
     const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
-    const matchesType = state.transactionFilter === 'all' || (state.transactionFilter === 'pending' && item.status === 'Pendente') || (state.transactionFilter === 'paid' && item.status === 'Pago');
+    const matchesType = state.transactionFilter === 'all' || (state.transactionFilter === 'pending' && ['Pendente', 'Aberta', 'Projetada'].includes(item.situacao || item.status)) || (state.transactionFilter === 'paid' && (item.situacao || item.status) === 'Paga');
     return accountPayable && matchesSearch && matchesType;
   }).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
   document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'conta' : 'contas'} no período`;
@@ -238,11 +238,14 @@ function renderTransactions() {
     const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
     const imported = item.fonte === 'pluggy';
     const bill = item.fonte === 'pluggy-bill';
+    const billLocked = bill && ['Aberta', 'Projetada'].includes(item.situacao);
     const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
     const paid = item.status === 'Pago';
-    const billTag = item.ajustada ? 'Ajustada' : item.estimada ? 'Estimada' : 'Pluggy';
+    const billTag = item.situacao === 'Aberta' ? 'Aberta' : item.ajustada ? 'Ajustada' : item.situacao === 'Projetada' ? 'Projetada' : item.estimada ? 'Estimada' : 'Pluggy';
     const source = bill ? item.fontePagamento : item.origem;
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
+    const displayedStatus = bill ? item.situacao : item.status;
+    const statusClass = displayedStatus === 'Paga' || displayedStatus === 'Pago' ? 'paid' : displayedStatus === 'Projetada' ? 'projected' : displayedStatus === 'Aberta' ? 'open' : 'pending';
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit || billLocked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${billLocked ? `Fatura ${item.situacao.toLowerCase()}` : bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${statusClass}">${paid ? iconSvg('check') : ''}${escapeHtml(displayedStatus)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill && !billLocked ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : bill ? '<div class="transaction-actions synced-lock">Sincronizada</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
   }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
 }
 
@@ -262,7 +265,8 @@ function renderCards() {
     const used = card.creditLimit ? Math.min(100, card.usedLimit / card.creditLimit * 100) : 0;
     const cardBills = bills.filter((bill) => bill.accountId === card.id);
     const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
-    const billStatus = cardBills.length && cardBills.every((bill) => bill.status === 'Pago') ? 'Paga' : 'Pendente';
+    const situations = [...new Set(cardBills.map((bill) => bill.situacao))];
+    const billStatus = situations.length === 1 ? situations[0] : situations.includes('Aberta') ? 'Aberta' : situations.includes('Projetada') ? 'Projetada' : 'Pendente';
     const active = state.selectedCardId === card.id;
     return `<button class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><div class="card-bill"><span>Fatura do mês</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? billStatus : ''}</small></div><div class="card-limit"><span>Limite usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></button>`;
   }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
@@ -443,7 +447,7 @@ async function saveBill(event) {
 
 async function toggleStatus(id, button) {
   const transaction = state.transactions.find((item) => item.id === id);
-  if (!transaction || transaction.fonte === 'pluggy') return;
+  if (!transaction || transaction.fonte === 'pluggy' || ['Aberta', 'Projetada'].includes(transaction.situacao)) return;
   const status = transaction.status === 'Pago' ? 'Pendente' : 'Pago';
   button.disabled = true;
   try {
