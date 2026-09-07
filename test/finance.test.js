@@ -149,3 +149,12 @@ test('estima apenas meses que nao possuem fatura oficial', () => {
   assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-08')).estimated, false);
   assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-09')).total, 180);
 });
+
+test('pagamento de fatura afeta o saldo sem duplicar despesas', () => {
+  const pending = summarize([{ tipo: 'Pagamento Fatura', valor: 800, status: 'Pendente', fontePagamento: 'Conta Corrente', categoria: 'Fatura de cartão' }]);
+  assert.equal(pending.despesas, 0);
+  assert.equal(pending.saldoPrevisto, -800);
+  assert.equal(pending.saldoAtual, 0);
+  const paid = summarize([{ tipo: 'Pagamento Fatura', valor: 800, status: 'Pago', fontePagamento: 'Conta Corrente', categoria: 'Fatura de cartão' }]);
+  assert.equal(paid.saldoAtual, -800);
+});

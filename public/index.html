@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=24">
+  <link rel="stylesheet" href="/css/style.css?v=25">
   <title>DuoFinance | Visão geral</title>
 </head>
 
@@ -321,8 +321,26 @@
     </form>
   </dialog>
 
+  <dialog id="bill-dialog">
+    <form id="bill-form">
+      <div class="dialog-head">
+        <div><p class="eyebrow">FATURA DO CARTÃO</p><h2 id="bill-dialog-title">Ajustar fatura</h2></div>
+        <button type="button" class="icon-button" data-close-bill-dialog aria-label="Fechar">×</button>
+      </div>
+      <input type="hidden" name="id">
+      <div class="form-grid">
+        <label class="field full"><span>Valor final da fatura</span><input name="valor" type="number" min="0.01" step="0.01" required></label>
+        <label class="field full"><span>Fonte de pagamento</span><select name="fontePagamento" id="bill-source-select" required>
+          <option>Conta Corrente</option><option>Externo</option>
+        </select></label>
+      </div>
+      <p class="bill-dialog-note">O ajuste não altera compras ou limites sincronizados pela Pluggy.</p>
+      <div class="dialog-actions"><button type="button" class="button ghost" data-close-bill-dialog>Cancelar</button><button class="button primary" type="submit" id="save-bill-button">Salvar ajuste</button></div>
+    </form>
+  </dialog>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=24"></script>
+  <script type="module" src="/js/app.js?v=25"></script>
 </body>
 
 </html>

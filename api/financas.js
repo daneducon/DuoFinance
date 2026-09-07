@@ -33,14 +33,14 @@ async function getFinances(req, res) {
   const allTransactions = [...manualTransactions, ...pluggyTransactions];
   const monthTransactions = allTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
-  const summary = summarize(monthTransactions, configuration.caixinhas, allTransactions);
+  const summary = summarize([...monthTransactions, ...monthBills], configuration.caixinhas, [...allTransactions, ...pluggyBills]);
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   send(res, 200, {
     transactions: [...monthTransactions, ...monthBills],
     configuration,
     summary,
-    cashFlow: calculateCashFlow(allTransactions, month),
+    cashFlow: calculateCashFlow([...allTransactions, ...pluggyBills], month),
     analysis: buildAnalysis(allTransactions, month)
   });
 }
@@ -49,6 +49,10 @@ async function mutateFinances(req, res) {
   const { action, transaction, box, id } = req.body || {};
   if (action === 'updateBillStatus') {
     await sheets.updatePluggyBillStatus(String(id || '').replace(/^pluggy-bill:/, ''), String(req.body?.status || ''));
+    return send(res, 200, { updated: true });
+  }
+  if (action === 'updateBill') {
+    await sheets.updatePluggyBill(String(id || '').replace(/^pluggy-bill:/, ''), Number(req.body?.value), String(req.body?.source || '').trim());
     return send(res, 200, { updated: true });
   }
   if (String(transaction?.id || id || '').startsWith('pluggy:')) return send(res, 403, { error: 'Lancamentos sincronizados nao podem ser alterados.' });

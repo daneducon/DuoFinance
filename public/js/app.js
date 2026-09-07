@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, syncPluggy, updateBillStatus, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, syncPluggy, updateBillStatus, updateBill, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
@@ -16,6 +16,8 @@ const elements = {
 };
 elements.boxDialog = document.querySelector('#box-dialog');
 elements.boxForm = document.querySelector('#box-form');
+elements.billDialog = document.querySelector('#bill-dialog');
+elements.billForm = document.querySelector('#bill-form');
 const tabs = { general: 'Visão geral', transactions: 'Contas', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
 
 elements.month.value = new Date().toISOString().slice(0, 7);
@@ -39,12 +41,15 @@ document.querySelector('#previous-month').addEventListener('click', () => shiftM
 document.querySelector('#next-month').addEventListener('click', () => shiftMonth(1));
 elements.form.addEventListener('submit', saveTransaction);
 elements.boxForm.addEventListener('submit', saveBox);
+elements.billForm.addEventListener('submit', saveBill);
 elements.form.elements.tipo.addEventListener('change', enforceDepositStatus);
 elements.list.addEventListener('click', handleTransactionAction);
 elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
 elements.boxDialog.addEventListener('click', (event) => { if (event.target === elements.boxDialog) elements.boxDialog.close(); });
+elements.billDialog.addEventListener('click', (event) => { if (event.target === elements.billDialog) elements.billDialog.close(); });
 document.querySelectorAll('[data-close-box-dialog]').forEach((button) => button.addEventListener('click', () => elements.boxDialog.close()));
+document.querySelectorAll('[data-close-bill-dialog]').forEach((button) => button.addEventListener('click', () => elements.billDialog.close()));
 window.addEventListener('hashchange', () => switchTab(location.hash.slice(1), false));
 window.addEventListener('online', async () => {
   updateConnectivity();
@@ -222,7 +227,7 @@ function applyLocalBox(box) {
 function renderTransactions() {
   const query = normalize(state.search);
   const filtered = state.transactions.filter((item) => {
-    const accountPayable = item.tipo === 'Despesa' && item.fonte !== 'pluggy';
+    const accountPayable = item.fonte === 'pluggy-bill' || (item.tipo === 'Despesa' && item.fonte !== 'pluggy');
     const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
     const matchesType = state.transactionFilter === 'all' || (state.transactionFilter === 'pending' && item.status === 'Pendente') || (state.transactionFilter === 'paid' && item.status === 'Pago');
     return accountPayable && matchesSearch && matchesType;
@@ -235,7 +240,9 @@ function renderTransactions() {
     const bill = item.fonte === 'pluggy-bill';
     const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
     const paid = item.status === 'Pago';
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${item.estimada ? 'Estimada' : 'Pluggy'}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span>${paid ? `<span class="paid-origin">${escapeHtml(item.origem)}</span>` : ''}</div>${bill ? '<div class="transaction-actions synced-lock">Fatura</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
+    const billTag = item.ajustada ? 'Ajustada' : item.estimada ? 'Estimada' : 'Pluggy';
+    const source = bill ? item.fontePagamento : item.origem;
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${paid ? 'paid' : 'pending'}">${paid ? iconSvg('check') : ''}${escapeHtml(item.status)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
   }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
 }
 
@@ -392,9 +399,11 @@ function enforceDepositStatus() {
 }
 
 async function handleTransactionAction(event) {
+  const billId = event.target.closest('[data-edit-bill]')?.dataset.editBill;
   const editId = event.target.closest('[data-edit]')?.dataset.edit;
   const deleteId = event.target.closest('[data-delete]')?.dataset.delete;
   const statusId = event.target.closest('[data-status]')?.dataset.status;
+  if (billId) return openBillForm(state.transactions.find((item) => item.id === billId));
   if (editId) return openForm(state.transactions.find((item) => item.id === editId));
   if (statusId) return toggleStatus(statusId, event.target.closest('[data-status]'));
   if (!deleteId) return;
@@ -405,6 +414,31 @@ async function handleTransactionAction(event) {
     if (result.queued) applyLocal('delete', transaction); else await load();
     notify(result.queued ? 'Exclusão agendada.' : 'Lançamento excluído.');
   } catch (error) { notify(error.message, true); }
+}
+
+function openBillForm(bill) {
+  if (!bill) return;
+  elements.billForm.reset();
+  elements.billForm.elements.id.value = bill.id;
+  elements.billForm.elements.valor.value = bill.valor;
+  elements.billForm.elements.fontePagamento.value = bill.fontePagamento || 'Conta Corrente';
+  document.querySelector('#bill-dialog-title').textContent = bill.descricao;
+  elements.billDialog.showModal();
+  setTimeout(() => elements.billForm.elements.valor.focus(), 0);
+}
+
+async function saveBill(event) {
+  event.preventDefault();
+  const form = new FormData(elements.billForm);
+  const button = document.querySelector('#save-bill-button');
+  button.disabled = true;
+  try {
+    await updateBill(String(form.get('id')), Number(form.get('valor')), String(form.get('fontePagamento')));
+    elements.billDialog.close();
+    await load();
+    notify('Valor e fonte da fatura atualizados.');
+  } catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; }
 }
 
 async function toggleStatus(id, button) {
@@ -440,6 +474,9 @@ function calculateSummary() {
   state.transactions.forEach((item) => {
     if (item.fonte === 'pluggy-bill') {
       if (item.status === 'Pendente') result.aPagar += item.valor;
+      const effect = accountEffect(item);
+      result.saldoPrevisto += effect;
+      if (item.status === 'Pago') result.saldoAtual += effect;
       return;
     }
     const effect = accountEffect(item);
@@ -488,9 +525,10 @@ function applyBoxContribution(boxes, item, direction) {
 }
 
 function accountEffect(item) {
-  if (!['Conta Corrente', 'Cartão de Crédito'].includes(item.origem)) return 0;
+  const source = item.fontePagamento || item.origem;
+  if (!['Conta Corrente', 'Cartão de Crédito'].includes(source)) return 0;
   if (['Receita', 'Resgate'].includes(item.tipo)) return item.valor;
-  if (['Despesa', 'Depósito', 'Depósito Caixinha'].includes(item.tipo)) return -item.valor;
+  if (['Despesa', 'Pagamento Fatura', 'Depósito', 'Depósito Caixinha'].includes(item.tipo)) return -item.valor;
   return 0;
 }
 
