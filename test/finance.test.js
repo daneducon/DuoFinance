@@ -159,3 +159,29 @@ test('pagamento de fatura afeta o saldo sem duplicar despesas', () => {
   const paid = summarize([{ tipo: 'Pagamento Fatura', valor: 800, status: 'Pago', fontePagamento: 'Conta Corrente', categoria: 'Fatura de cartão' }]);
   assert.equal(paid.saldoAtual, -800);
 });
+
+test('atribui compra ao ciclo correto e projeta parcelas futuras', () => {
+  const account = {
+    id: 'santander-card', itemId: 'item-1', name: 'Santander',
+    creditData: { balanceCloseDate: '2026-09-03', balanceDueDate: '2026-09-10' }
+  };
+  const bills = mapBills([], account, [{
+    type: 'DEBIT', amount: 391.58, date: '2026-08-26', description: 'Amazon',
+    creditCardMetadata: { installmentNumber: 3, totalInstallments: 12, purchaseDate: '2026-06-26', totalAmount: 4698.96 }
+  }]);
+  assert.equal(bills.length, 10);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-09')).total, 391.58);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-10')).total, 391.58);
+  assert.equal(bills.at(-1).dueDate.slice(0, 7), '2027-06');
+});
+
+test('nao duplica projecao quando a parcela seguinte ja existe', () => {
+  const account = { id: 'card-1', itemId: 'item-1', name: 'Card' };
+  const metadata = { totalInstallments: 5, purchaseDate: '2026-07-05', totalAmount: 500 };
+  const bills = mapBills([], account, [
+    { type: 'DEBIT', amount: 100, date: '2026-09-05', description: 'Compra', creditCardMetadata: { ...metadata, installmentNumber: 3, billForecastDate: '2026-09' } },
+    { type: 'DEBIT', amount: 100, date: '2026-10-05', description: 'Compra', creditCardMetadata: { ...metadata, installmentNumber: 4, billForecastDate: '2026-10' } }
+  ]);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-10')).total, 100);
+  assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-11')).total, 100);
+});
