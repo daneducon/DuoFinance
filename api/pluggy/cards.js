@@ -22,7 +22,10 @@ module.exports = async function handler(req, res) {
       ...account, institution: institutions.get(account.itemId)?.institution || 'Instituicao conectada', imageUrl: institutions.get(account.itemId)?.imageUrl || ''
     }));
     const bankBalance = accounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
-    send(res, 200, { configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET), items, cards, transactions, bankBalance });
+    send(res, 200, {
+      configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET),
+      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bankBalance
+    });
   } catch (error) {
     errorResponse(res, error);
   }

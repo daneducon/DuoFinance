@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "npx vercel@latest dev",
     "test": "node --test",
-    "check": "node --check api/auth.js && node --check api/financas.js && node --check api/ai/analyze.js && node --check api/pluggy/connect-token.js && node --check api/pluggy/cards.js && node --check api/pluggy/sync.js && node --check api/pluggy/webhook.js"
+    "check": "node --check api/auth.js && node --check api/financas.js && node --check api/ai/analyze.js && node --check api/pluggy/cards.js && node --check api/pluggy/sync.js && node --check api/pluggy/webhook.js"
   },
   "engines": {
     "node": ">=20"

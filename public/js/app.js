@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, createPluggyConnectToken, syncPluggy, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, syncPluggy, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
@@ -29,7 +29,6 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
 document.querySelector('#logout-button').addEventListener('click', () => { clearSession(); window.location.assign('/login'); });
 document.querySelector('#analyze-button').addEventListener('click', generateInsight);
-document.querySelector('#connect-pluggy-button').addEventListener('click', connectPluggy);
 document.querySelector('#sync-pluggy-button').addEventListener('click', synchronizePluggy);
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
@@ -246,7 +245,7 @@ function renderCards() {
   document.querySelector('#credit-limit-used').textContent = money(cards.reduce((sum, card) => sum + card.usedLimit, 0));
   document.querySelector('#credit-limit-available').textContent = money(cards.reduce((sum, card) => sum + card.availableLimit, 0));
   const status = document.querySelector('#pluggy-status');
-  status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) conectada(s). Dados atualizados automaticamente.` : 'Conecte uma instituição para sincronizar seus dados.');
+  status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s).` : data.hasConfiguredItems ? 'Clique em Sincronizar dados para fazer a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel para importar seus dados.');
   status.classList.toggle('error-copy', Boolean(data.error));
   const grid = document.querySelector('#connected-card-grid');
   grid.innerHTML = cards.length ? cards.map((card, index) => {
@@ -271,27 +270,6 @@ function selectCard(event) {
   if (!id) return;
   state.selectedCardId = state.selectedCardId === id ? 'all' : id;
   renderCards();
-}
-
-async function connectPluggy() {
-  const button = document.querySelector('#connect-pluggy-button');
-  button.disabled = true;
-  try {
-    if (!window.PluggyConnect) throw new Error('O conector bancário não foi carregado.');
-    const { accessToken } = await createPluggyConnectToken();
-    new window.PluggyConnect({
-      connectToken: accessToken, products: ['ACCOUNTS', 'CREDIT_CARDS', 'TRANSACTIONS'], countries: ['BR'], language: 'pt', theme: 'dark',
-      onSuccess: async (data) => {
-        try {
-          notify('Instituição conectada. A sincronização continuará em segundo plano.');
-          await new Promise((resolve) => setTimeout(resolve, 2500));
-          await load();
-        } catch (error) { notify(error.message, true); }
-      },
-      onError: (error) => { button.disabled = false; notify(error?.message || 'Não foi possível conectar a instituição.', true); },
-      onClose: () => { button.disabled = false; }
-    }).init();
-  } catch (error) { button.disabled = false; notify(error.message, true); }
 }
 
 async function synchronizePluggy() {

@@ -120,11 +120,6 @@ export async function getCards(month) {
   return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}`);
 }
 
-export async function createPluggyConnectToken(itemId) {
-  if (session()?.demo) throw new Error('Conexões bancárias não estão disponíveis na demonstração.');
-  return request('/api/pluggy/connect-token', { method: 'POST', body: JSON.stringify(itemId ? { itemId } : {}) });
-}
-
 export async function syncPluggy(itemId) {
   if (session()?.demo) return { synced: false };
   return request('/api/pluggy/sync', { method: 'POST', body: JSON.stringify(itemId ? { itemId } : {}) });

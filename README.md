@@ -21,7 +21,8 @@ Acesse `http://localhost:3000/login`. O botão **Explorar demonstração** funci
 4. Crie as abas `Lancamentos` e `Configuracoes` usando exatamente os cabeçalhos descritos em `sdd_regras.md`.
 5. Em `ALLOWED_EMAILS`, informe os e-mails Google autorizados separados por vírgula.
 6. Crie uma chave no OpenRouter e configure `OPENROUTER_API_KEY`. O padrão de `OPENROUTER_MODEL` é `google/gemma-4-31b-it`.
-7. Na Pluggy, configure `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` e aponte um webhook `all` para `https://seu-dominio.vercel.app/api/pluggy/webhook`.
+7. Na Pluggy, copie o ID de cada Item já conectado e configure `PLUGGY_CLIENT_ID`, `PLUGGY_CLIENT_SECRET` e `PLUGGY_ITEM_IDS`. Para múltiplos Items, separe os IDs por vírgula.
+8. Aponte um webhook `all` para `https://seu-dominio.vercel.app/api/pluggy/webhook`.
 
 Na primeira execução, o app cria automaticamente as abas `PluggyItens`, `PluggyContas`, `PluggyTransacoes` e `PluggyEventos` na planilha. Para proteger um webhook criado pelo Dashboard, configure `PLUGGY_WEBHOOK_SECRET` e use a URL `https://seu-dominio.vercel.app/api/pluggy/webhook?secret=SEU_SEGREDO`. Se ele for criado via API, envie o mesmo valor no header `X-Pluggy-Secret`. Sem a variável, o endpoint fica sem autenticação e deve ser usado apenas temporariamente durante a configuração.
 
