@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible } = require('../lib/finance');
-const { mapTransaction, mapBills } = require('../lib/pluggy');
+const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 
 test('calcula saldos sem abater despesas de caixinha da conta corrente', () => {
   const transactions = [
@@ -236,4 +236,16 @@ test('atribui os responsaveis padrao aos cartoes conhecidos', () => {
   assert.equal(defaultCardResponsible('ultraviolet-black'), 'Ele');
   assert.equal(defaultCardResponsible('ITAU VISA PLATINUM'), 'Ele');
   assert.equal(defaultCardResponsible('Cartão compartilhado'), 'Nós');
+});
+
+test('trata ajuste a credito do Nubank como cashback e abate da fatura', () => {
+  const account = { id: 'nubank', itemId: 'item-1', name: 'ultraviolet-black' };
+  const adjustment = { id: 'credit-1', type: 'CREDIT', amount: -105, date: '2026-09-05', description: 'Ajuste a crédito' };
+  assert.equal(isCardCreditAdjustment(adjustment), true);
+  assert.equal(mapTransaction(adjustment, account).tipo, 'Estorno');
+  const bills = mapBills([], account, [
+    { type: 'DEBIT', amount: 1729, date: '2026-09-02', description: 'Compras' },
+    adjustment
+  ]);
+  assert.equal(bills[0].total, 1624);
 });
