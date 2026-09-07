@@ -179,8 +179,8 @@ test('nao duplica projecao quando a parcela seguinte ja existe', () => {
   const account = { id: 'card-1', itemId: 'item-1', name: 'Card' };
   const metadata = { totalInstallments: 5, purchaseDate: '2026-07-05', totalAmount: 500 };
   const bills = mapBills([], account, [
-    { type: 'DEBIT', amount: 100, date: '2026-09-05', description: 'Compra', creditCardMetadata: { ...metadata, installmentNumber: 3, billForecastDate: '2026-09' } },
-    { type: 'DEBIT', amount: 100, date: '2026-10-05', description: 'Compra', creditCardMetadata: { ...metadata, installmentNumber: 4, billForecastDate: '2026-10' } }
+    { type: 'DEBIT', amount: 100, date: '2026-09-05', description: 'Compra parcela 03/05', creditCardMetadata: { ...metadata, installmentNumber: 3, billForecastDate: '2026-09' } },
+    { type: 'DEBIT', amount: 100, date: '2026-10-05', description: 'Compra parcela 04/05', creditCardMetadata: { ...metadata, installmentNumber: 4, billForecastDate: '2026-10' } }
   ]);
   assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-10')).total, 100);
   assert.equal(bills.find((bill) => bill.dueDate.startsWith('2026-11')).total, 100);
