@@ -152,7 +152,8 @@ test('estima apenas meses que nao possuem fatura oficial', () => {
 
 test('pagamento de fatura afeta o saldo sem duplicar despesas', () => {
   const pending = summarize([{ tipo: 'Pagamento Fatura', valor: 800, status: 'Pendente', fontePagamento: 'Conta Corrente', categoria: 'Fatura de cartão' }]);
-  assert.equal(pending.despesas, 0);
+  assert.equal(pending.despesas, 800);
+  assert.equal(pending.aPagar, 800);
   assert.equal(pending.saldoPrevisto, -800);
   assert.equal(pending.saldoAtual, 0);
   const paid = summarize([{ tipo: 'Pagamento Fatura', valor: 800, status: 'Pago', fontePagamento: 'Conta Corrente', categoria: 'Fatura de cartão' }]);

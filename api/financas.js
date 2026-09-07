@@ -31,16 +31,16 @@ async function getFinances(req, res) {
     sheets.getConfiguration()
   ]);
   const allTransactions = [...manualTransactions, ...pluggyTransactions];
-  const monthTransactions = allTransactions.filter((item) => item.mesRef === month);
+  const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
-  const summary = summarize([...monthTransactions, ...monthBills], configuration.caixinhas, [...allTransactions, ...pluggyBills]);
+  const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   send(res, 200, {
-    transactions: [...monthTransactions, ...monthBills],
+    transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
     summary,
-    cashFlow: calculateCashFlow([...allTransactions, ...pluggyBills], month),
+    cashFlow: calculateCashFlow([...manualTransactions, ...monthBills], month),
     analysis: buildAnalysis(allTransactions, month)
   });
 }

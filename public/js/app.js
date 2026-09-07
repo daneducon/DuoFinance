@@ -472,7 +472,10 @@ function applyLocal(action, transaction) {
 function calculateSummary() {
   const result = { receitas: 0, despesas: 0, saldoPrevisto: 0, saldoAtual: 0, pendente: 0, aReceber: 0, aPagar: 0, categorias: {}, caixinhas: state.configuration.caixinhas.map((box) => ({ ...box, saldo: state.boxBase[box.nome] || 0, progresso: 0 })) };
   state.transactions.forEach((item) => {
+    if (item.fonte === 'pluggy') return;
     if (item.fonte === 'pluggy-bill') {
+      result.despesas += item.valor;
+      result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor;
       if (item.status === 'Pendente') result.aPagar += item.valor;
       const effect = accountEffect(item);
       result.saldoPrevisto += effect;
