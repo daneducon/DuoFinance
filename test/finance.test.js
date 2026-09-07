@@ -101,7 +101,8 @@ test('mapeia compra e estorno da Pluggy sem importar pagamento de fatura', () =>
   assert.equal(purchase.tipo, 'Despesa');
   assert.equal(purchase.accountName, 'Visa • 1234');
   assert.equal(purchase.parcelaAtual, 2);
-  assert.equal(mapTransaction({ id: 'tx-2', type: 'CREDIT', amount: -50, date: '2026-09-08', description: 'Estorno' }, account).tipo, 'Estorno');
+  assert.equal(mapTransaction({ id: 'tx-2', type: 'CREDIT', amount: -50, date: '2026-09-08', description: 'Estorno', operationType: 'ESTORNO' }, account).tipo, 'Estorno');
+  assert.equal(mapTransaction({ id: 'tx-4', type: 'CREDIT', amount: -100, date: '2026-09-08', description: 'Pagamento' }, account), null);
   assert.equal(mapTransaction({ id: 'tx-3', operationType: 'PAGAMENTO_FATURA' }, account), null);
 });
 

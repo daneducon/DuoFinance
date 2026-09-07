@@ -283,16 +283,15 @@ async function connectPluggy() {
       connectToken: accessToken, products: ['ACCOUNTS', 'CREDIT_CARDS', 'TRANSACTIONS'], countries: ['BR'], language: 'pt', theme: 'dark',
       onSuccess: async (data) => {
         try {
-          const itemId = data?.item?.id || data?.id;
-          notify('Instituição conectada. Sincronizando dados...');
-          if (itemId) await syncPluggy(itemId);
+          notify('Instituição conectada. A sincronização continuará em segundo plano.');
+          await new Promise((resolve) => setTimeout(resolve, 2500));
           await load();
         } catch (error) { notify(error.message, true); }
       },
-      onError: (error) => notify(error?.message || 'Não foi possível conectar a instituição.', true)
+      onError: (error) => { button.disabled = false; notify(error?.message || 'Não foi possível conectar a instituição.', true); },
+      onClose: () => { button.disabled = false; }
     }).init();
-  } catch (error) { notify(error.message, true); }
-  finally { button.disabled = false; }
+  } catch (error) { button.disabled = false; notify(error.message, true); }
 }
 
 async function synchronizePluggy() {

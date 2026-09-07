@@ -9,9 +9,10 @@
     "check": "node --check api/auth.js && node --check api/financas.js && node --check api/ai/analyze.js && node --check api/pluggy/connect-token.js && node --check api/pluggy/cards.js && node --check api/pluggy/sync.js && node --check api/pluggy/webhook.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
+    "@vercel/functions": "^3.9.5",
     "google-auth-library": "^11.0.2"
   }
 }

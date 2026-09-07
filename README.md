@@ -4,7 +4,7 @@ PWA de gestão financeira para casais, com dashboard mensal, caixinhas, operaç�
 
 ## Executar localmente
 
-Requisitos: Node.js 18 ou superior.
+Requisitos: Node.js 20 ou superior.
 
 ```bash
 npm install
@@ -23,7 +23,7 @@ Acesse `http://localhost:3000/login`. O botão **Explorar demonstração** funci
 6. Crie uma chave no OpenRouter e configure `OPENROUTER_API_KEY`. O padrão de `OPENROUTER_MODEL` é `google/gemma-4-31b-it`.
 7. Na Pluggy, configure `PLUGGY_CLIENT_ID` e `PLUGGY_CLIENT_SECRET` e aponte um webhook `all` para `https://seu-dominio.vercel.app/api/pluggy/webhook`.
 
-Na primeira execução, o app cria automaticamente as abas `PluggyItens`, `PluggyContas`, `PluggyTransacoes` e `PluggyEventos` na planilha. Se o webhook for criado via API com o header `X-Pluggy-Secret`, configure o mesmo valor em `PLUGGY_WEBHOOK_SECRET`. Webhooks criados pelo Dashboard, sem header personalizado, continuam aceitos e têm os IDs validados consultando a própria Pluggy.
+Na primeira execução, o app cria automaticamente as abas `PluggyItens`, `PluggyContas`, `PluggyTransacoes` e `PluggyEventos` na planilha. Para proteger um webhook criado pelo Dashboard, configure `PLUGGY_WEBHOOK_SECRET` e use a URL `https://seu-dominio.vercel.app/api/pluggy/webhook?secret=SEU_SEGREDO`. Se ele for criado via API, envie o mesmo valor no header `X-Pluggy-Secret`. Sem a variável, o endpoint fica sem autenticação e deve ser usado apenas temporariamente durante a configuração.
 
 Na Vercel, cadastre as mesmas variáveis em **Project Settings > Environment Variables**. Nunca coloque chaves privadas dentro de `public/`.
 
