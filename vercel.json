@@ -3,8 +3,11 @@
   "trailingSlash": false,
   "functions": {
     "api/pluggy/sync.js": { "maxDuration": 60 },
-    "api/pluggy/webhook.js": { "maxDuration": 60 }
+    "api/pluggy/webhook.js": { "maxDuration": 60 },
+    "api/cron/monthly-close.js": { "maxDuration": 60 },
+    "api/ai/sync.js": { "maxDuration": 60 }
   },
+  "crons": [{ "path": "/api/cron/monthly-close", "schedule": "0 6 1 * *" }],
   "headers": [
     {
       "source": "/(.*)",

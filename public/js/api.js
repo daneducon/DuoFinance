@@ -230,3 +230,8 @@ export async function analyze(month) {
   }
   return request('/api/ai/analyze', { method: 'POST', body: JSON.stringify({ mes: month }) });
 }
+
+export async function getSyncMentor(month) {
+  if (session()?.demo) return { insight: null };
+  return request(`/api/ai/sync?mes=${encodeURIComponent(month)}`);
+}

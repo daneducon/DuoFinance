@@ -113,6 +113,10 @@
             </div>
           </article>
         </section>
+        <article class="panel general-mentor" id="general-mentor">
+          <div class="mentor-title"><span class="spark">✦</span><div><p class="eyebrow">MENTOR DUO</p><h2>Um freio antes da próxima escolha</h2></div></div>
+          <blockquote id="general-mentor-text">Sincronize os cartões para o Mentor Duo avaliar o impacto dos gastos mais recentes.</blockquote>
+        </article>
         <section class="cashflow-layout">
           <article class="panel cashflow-panel">
             <div class="panel-head">
@@ -243,9 +247,9 @@
         </section>
         <section class="card-metrics" aria-label="Resumo de cartões e contas">
           <article><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong></article>
-          <article><span>Limite total</span><strong id="credit-limit-total">R$ 0,00</strong></article>
-          <article><span id="month-bill-label">Fatura em formação</span><strong id="month-bill-total">R$ 0,00</strong></article>
-          <article><span>Limite disponível</span><strong id="credit-limit-available">R$ 0,00</strong></article>
+          <article><span>Teto do mês</span><strong id="credit-limit-total">R$ 0,00</strong></article>
+          <article><span id="month-bill-label">Consumo dos cartões</span><strong id="month-bill-total">R$ 0,00</strong></article>
+          <article><span>Orçamento restante para o mês</span><strong id="credit-limit-available">R$ 0,00</strong></article>
         </section>
         <div class="view-heading cards-heading">
           <div><p class="eyebrow">CARTEIRA</p><h2>Cartões conectados</h2><p>Clique em um cartão para ver os gastos do mês.</p></div>
@@ -286,6 +290,9 @@
           </select></label>
         <label class="field"><span>Categoria</span><select name="categoria" id="category-select"
             required></select></label>
+        <label class="field" id="card-field" hidden><span>Cartão</span><select name="cartao">
+            <option value="">Selecione</option><option>Leroy</option><option>Camicado</option>
+          </select></label>
         <label class="field"><span>Responsável</span><select name="responsavel" id="responsible-select">
             <option>Ele</option>
             <option>Ela</option>
@@ -340,7 +347,7 @@
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=32"></script>
+  <script type="module" src="/js/app.js?v=35"></script>
 </body>
 
 </html>

@@ -24,10 +24,11 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [manualTransactions, pluggyBills, configuration] = await Promise.all([
+  const [manualTransactions, pluggyBills, configuration, mentor] = await Promise.all([
     sheets.listAllTransactions(),
     sheets.listPluggyBills(),
-    sheets.getConfiguration()
+    sheets.getConfiguration(),
+    sheets.getMentorInsights(month)
   ]);
   const accountingTransactions = [...manualTransactions, ...pluggyBills];
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
@@ -38,6 +39,7 @@ async function getFinances(req, res) {
   send(res, 200, {
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
+    mentor,
     summary,
     cashFlow: calculateCashFlow([...manualTransactions, ...monthBills], month),
     analysis: buildAnalysis(accountingTransactions, month)

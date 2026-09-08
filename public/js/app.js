@@ -1,10 +1,10 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue } from './api.js';
 
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
-  summary: null, cashFlow: null, analysis: { months: [] }, boxBase: {},
+  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {},
   transactionFilter: 'all', search: '', analysisFilter: 'all', cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
@@ -44,6 +44,7 @@ elements.form.addEventListener('submit', saveTransaction);
 elements.boxForm.addEventListener('submit', saveBox);
 elements.billForm.addEventListener('submit', saveBill);
 elements.form.elements.tipo.addEventListener('change', enforceDepositStatus);
+elements.form.elements.categoria.addEventListener('change', toggleCardField);
 elements.list.addEventListener('click', handleTransactionAction);
 elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
@@ -58,6 +59,7 @@ window.addEventListener('online', async () => {
   if (count) { notify(`${count} alteração(ões) sincronizada(s).`); load(); }
 });
 window.addEventListener('offline', updateConnectivity);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSyncMentor(); });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'FINANCES_SYNCED') { notify('Alterações offline sincronizadas.'); load(); }
@@ -68,6 +70,7 @@ if ('serviceWorker' in navigator) {
 switchTab(location.hash.slice(1) || 'general', false);
 updateConnectivity();
 load();
+setInterval(() => { if (!document.hidden && navigator.onLine) refreshSyncMentor(); }, 30000);
 
 async function load() {
   setLoading(true);
@@ -79,6 +82,7 @@ async function load() {
     state.summary = data.summary || calculateSummary();
     state.cashFlow = data.cashFlow || calculateLocalCashFlow();
     state.analysis = data.analysis || { months: [] };
+    state.mentor = data.mentor || {};
     state.cardsData = cardsData;
     state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
     render();
@@ -106,6 +110,7 @@ function render() {
   renderBoxes(summary.caixinhas || []);
   renderTransactions();
   renderAnalysis();
+  renderMentor();
   renderCards();
   populateSelects();
 }
@@ -246,7 +251,7 @@ function renderTransactions() {
     const source = bill ? item.fontePagamento : item.origem;
     const displayedStatus = bill ? item.situacao : item.status;
     const statusClass = displayedStatus === 'Paga' || displayedStatus === 'Pago' ? 'paid' : displayedStatus === 'Projetada' ? 'projected' : displayedStatus === 'Aberta' ? 'open' : 'pending';
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit || billLocked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${billLocked ? `Fatura ${item.situacao.toLowerCase()}` : bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${statusClass}">${paid ? iconSvg('check') : ''}${escapeHtml(displayedStatus)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill && !billLocked ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : bill ? '<div class="transaction-actions synced-lock">Sincronizada</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
+    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit || billLocked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${billLocked ? `Fatura ${item.situacao.toLowerCase()}` : bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${statusClass}">${paid ? iconSvg('check') : ''}${escapeHtml(displayedStatus)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill && !billLocked ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : bill ? '<div class="transaction-actions synced-lock">Sincronizada</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
   }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
 }
 
@@ -257,29 +262,35 @@ function renderCards() {
   const spendingLabel = fullMonthLabel(data.spendingMonth || elements.month.value);
   const paymentLabel = fullMonthLabel(data.paymentMonth || elements.month.value);
   document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
-  document.querySelector('#credit-limit-total').textContent = money(cards.reduce((sum, card) => sum + card.creditLimit, 0));
-  document.querySelector('#month-bill-label').textContent = `Fatura de ${spendingLabel}`;
-  document.querySelector('#month-bill-total').textContent = money(bills.reduce((sum, bill) => sum + bill.valor, 0));
-  document.querySelector('#credit-limit-available').textContent = money(cards.reduce((sum, card) => sum + card.availableLimit, 0));
+  const budget = data.budget || {};
+  document.querySelector('#credit-limit-total').textContent = money(budget.ceiling || 0);
+  document.querySelector('#month-bill-label').textContent = `Consumo em ${spendingLabel}`;
+  document.querySelector('#month-bill-total').textContent = money(budget.consumption || 0);
+  const remaining = document.querySelector('#credit-limit-available');
+  remaining.textContent = money(budget.remaining || 0);
+  remaining.classList.toggle('budget-negative', Number(budget.remaining) < 0);
   const status = document.querySelector('#pluggy-status');
   status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s).` : data.hasConfiguredItems ? 'Clique em Sincronizar dados para fazer a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel para importar seus dados.');
   status.classList.toggle('error-copy', Boolean(data.error));
   const grid = document.querySelector('#connected-card-grid');
   grid.innerHTML = cards.length ? cards.map((card, index) => {
-    const used = card.creditLimit ? Math.min(100, card.usedLimit / card.creditLimit * 100) : 0;
+    const allocation = card.budget || {};
+    const used = Number(allocation.percentage || 0);
+    const visualUsed = Math.min(100, Math.max(0, used));
     const cardBills = bills.filter((bill) => bill.accountId === card.id);
     const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
     const situations = [...new Set(cardBills.map((bill) => bill.situacao))];
     const billStatus = situations.length === 1 ? situations[0] : situations.includes('Aberta') ? 'Aberta' : situations.includes('Projetada') ? 'Projetada' : 'Pendente';
     const active = state.selectedCardId === card.id;
-    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${spendingLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? `${billStatus} · paga em ${paymentLabel}` : ''}</small></div><div class="card-limit"><span>Limite usado ${money(card.usedLimit)}</span><span>${Math.round(used)}%</span></div><div class="progress"><span style="width:${used}%"></span></div><span class="card-available">${money(card.availableLimit)} disponível</span></article>`;
+    const risk = allocation.risk || 'green';
+    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''} ${risk === 'red' ? 'budget-blocked' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${spendingLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${cardBills.length ? `${billStatus} · paga em ${paymentLabel}` : ''}</small></div><div class="card-limit"><span>Consumo ${money(allocation.spent || 0)}</span><span>${Math.round(used)}%</span></div><div class="progress risk-${risk}" role="progressbar" aria-label="Consumo do orçamento de ${escapeHtml(card.name)}" aria-valuenow="${Math.round(used)}" aria-valuemin="0" aria-valuemax="100"><span style="width:${visualUsed}%"></span></div><span class="card-available">${money(allocation.remaining || 0)} restantes de ${money(allocation.budget || 0)}</span></article>`;
   }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
   renderCardTransactions();
 }
 
 function renderCardTransactions() {
   const selected = state.cardsData.cards?.find((card) => card.id === state.selectedCardId);
-  const transactions = (state.cardsData.transactions || []).filter((item) => !selected || item.accountId === selected.id).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
+  const transactions = (state.cardsData.transactions || []).filter((item) => !selected || item.accountId === selected.id).sort((a, b) => b.data.localeCompare(a.data) || (b.ordem || 0) - (a.ordem || 0));
   document.querySelector('#selected-card-title').textContent = selected ? `Gastos em ${selected.name}` : 'Gastos nos cartões';
   const total = transactions.reduce((sum, item) => sum + (item.tipo === 'Estorno' ? -item.valor : item.valor), 0);
   document.querySelector('#card-expense-total').textContent = money(total);
@@ -307,10 +318,33 @@ async function changeCardResponsible(event) {
 
 async function synchronizePluggy() {
   const button = document.querySelector('#sync-pluggy-button');
+  const previousMentorUpdate = state.mentor?.sync?.updatedAt;
   button.disabled = true;
-  try { await syncPluggy(); await load(); notify('Dados bancários sincronizados.'); }
+  try {
+    const result = await syncPluggy();
+    await load();
+    notify(result.mentorQueued ? 'Dados bancários sincronizados. O Mentor Duo está atualizando a orientação.' : 'Dados bancários sincronizados.');
+    if (result.mentorQueued) refreshSyncMentor(previousMentorUpdate);
+  }
   catch (error) { notify(error.message, true); }
   finally { button.disabled = false; }
+}
+
+async function refreshSyncMentor(previousUpdate) {
+  const delays = previousUpdate === undefined ? [0] : [5000, 5000, 5000, 5000, 5000];
+  for (const delay of delays) {
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    try {
+      const insight = (await getSyncMentor(elements.month.value)).insight;
+      if (insight?.updatedAt && insight.updatedAt !== previousUpdate) {
+        state.mentor = { ...state.mentor, sync: insight };
+        renderMentor();
+        return;
+      }
+    } catch {
+      return;
+    }
+  }
 }
 
 function renderAnalysis() {
@@ -358,6 +392,7 @@ function populateSelects() {
   const origins = ['Conta Corrente', 'Cartão de Crédito', 'Externo', ...state.configuration.caixinhas.map((box) => box.nome)];
   originSelect.innerHTML = origins.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
   if (origins.includes(currentOrigin)) originSelect.value = currentOrigin;
+  toggleCardField();
 }
 
 function openForm(transaction = null) {
@@ -378,6 +413,7 @@ function openForm(transaction = null) {
     elements.form.elements.responsavel.value = 'Nós';
   }
   enforceDepositStatus();
+  toggleCardField();
   elements.dialog.showModal();
   setTimeout(() => elements.form.elements.descricao.focus(), 0);
 }
@@ -392,7 +428,7 @@ async function saveTransaction(event) {
     id: existingId, tipo: form.get('tipo'), descricao: form.get('descricao').trim(), valor: Number(form.get('valor')),
     data: form.get('data'), dataPg: status === 'Pago' ? form.get('data') : '', mesRef: form.get('data').slice(0, 7),
     status, categoria: form.get('categoria'), responsavel: form.get('responsavel'), parcelaAtual: 1, totalParcelas: 1,
-    idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem')
+    idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem'), cartao: form.get('cartao') || ''
   };
   const action = existingId ? 'update' : 'create';
   const saveButton = document.querySelector('#save-button');
@@ -418,6 +454,14 @@ function enforceDepositStatus() {
   if (deposit) status.value = 'Pago';
   status.disabled = deposit;
   status.title = deposit ? 'Depósitos são sempre registrados como pagos.' : '';
+}
+
+function toggleCardField() {
+  const field = document.querySelector('#card-field');
+  const isCardBill = normalize(elements.form.elements.categoria.value) === 'cartao de credito';
+  field.hidden = !isCardBill;
+  elements.form.elements.cartao.required = isCardBill;
+  if (!isCardBill) elements.form.elements.cartao.value = '';
 }
 
 async function handleTransactionAction(event) {
@@ -564,6 +608,13 @@ async function generateInsight() {
   try { elements.insight.textContent = (await analyze(elements.month.value)).insight; }
   catch (error) { notify(error.message, true); }
   finally { button.disabled = false; button.firstChild.textContent = 'Analisar dados com IA '; }
+}
+
+function renderMentor() {
+  const sync = state.mentor?.sync;
+  document.querySelector('#general-mentor-text').textContent = sync?.message || 'Sincronize os cartões para o Mentor Duo avaliar o impacto dos gastos mais recentes.';
+  const monthly = state.mentor?.monthly;
+  if (monthly?.perception && monthly?.question) elements.insight.textContent = `${monthly.perception}\n\n${monthly.question}`;
 }
 
 function updateConnectivity() { elements.offline.hidden = navigator.onLine; }
