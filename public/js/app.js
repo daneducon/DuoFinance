@@ -43,8 +43,10 @@ document.querySelector('#next-month').addEventListener('click', () => shiftMonth
 elements.form.addEventListener('submit', saveTransaction);
 elements.boxForm.addEventListener('submit', saveBox);
 elements.billForm.addEventListener('submit', saveBill);
-elements.form.elements.tipo.addEventListener('change', enforceDepositStatus);
+elements.form.elements.tipo.addEventListener('change', () => { enforceDepositStatus(); syncDepositFields(); });
 elements.form.elements.categoria.addEventListener('change', toggleCardField);
+const boxSelectEl = document.querySelector('#box-select');
+if (boxSelectEl) boxSelectEl.addEventListener('change', () => {});
 elements.list.addEventListener('click', handleTransactionAction);
 elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
@@ -233,12 +235,18 @@ function applyLocalBox(box) {
 function renderTransactions() {
   const query = normalize(state.search);
   const filtered = state.transactions.filter((item) => {
-    const accountPayable = item.fonte === 'pluggy-bill' || (item.tipo === 'Despesa' && item.fonte !== 'pluggy');
+    const isVisible = item.fonte === 'pluggy-bill' || item.fonte !== 'pluggy';
     const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
-    const matchesType = state.transactionFilter === 'all' || (state.transactionFilter === 'pending' && ['Pendente', 'Aberta', 'Projetada'].includes(item.situacao || item.status)) || (state.transactionFilter === 'paid' && (item.situacao || item.status) === 'Paga');
-    return accountPayable && matchesSearch && matchesType;
+    const status = item.situacao || item.status;
+    const matchesType = state.transactionFilter === 'all'
+      || (state.transactionFilter === 'pending' && ['Pendente', 'Aberta', 'Projetada'].includes(status))
+      || (state.transactionFilter === 'paid' && ['Pago', 'Paga'].includes(status))
+      || (state.transactionFilter === 'income' && ['Receita', 'Resgate', 'Estorno'].includes(item.tipo))
+      || (state.transactionFilter === 'expense' && ['Despesa', 'Pagamento Fatura'].includes(item.tipo))
+      || (state.transactionFilter === 'deposit' && ['Depósito', 'Depósito Caixinha'].includes(item.tipo));
+    return isVisible && matchesSearch && matchesType;
   }).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
-  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'conta' : 'contas'} no período`;
+  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'lançamento' : 'lançamentos'} no período`;
   elements.list.innerHTML = filtered.length ? filtered.map((item) => {
     const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
     const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
@@ -392,7 +400,19 @@ function populateSelects() {
   const origins = ['Conta Corrente', 'Cartão de Crédito', 'Externo', ...state.configuration.caixinhas.map((box) => box.nome)];
   originSelect.innerHTML = origins.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
   if (origins.includes(currentOrigin)) originSelect.value = currentOrigin;
+  const boxSelect = document.querySelector('#box-select');
+  if (boxSelect) {
+    const currentBox = boxSelect.value;
+    const boxes = state.configuration.caixinhas.map((box) => box.nome);
+    if (boxes.length) {
+      boxSelect.innerHTML = boxes.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
+      if (boxes.includes(currentBox)) boxSelect.value = currentBox;
+    } else {
+      boxSelect.innerHTML = '<option value="">Nenhuma caixinha</option>';
+    }
+  }
   toggleCardField();
+  syncDepositFields();
 }
 
 function openForm(transaction = null) {
@@ -407,6 +427,16 @@ function openForm(transaction = null) {
       if (field.type === 'checkbox') field.checked = Boolean(value);
       else field.value = value;
     }
+    const isDepositTx = ['Depósito', 'Depósito Caixinha'].includes(transaction.tipo);
+    if (isDepositTx) {
+      const boxField = transaction.categoria && state.configuration.caixinhas.some((b) => sameLabel(b.nome, transaction.categoria))
+        ? transaction.categoria
+        : transaction.origem && state.configuration.caixinhas.some((b) => sameLabel(b.nome, transaction.origem))
+          ? transaction.origem
+          : state.configuration.caixinhas[0]?.nome || '';
+      const boxSelect = document.querySelector('#box-select');
+      if (boxSelect && boxField) boxSelect.value = boxField;
+    }
   } else {
     const lastDay = new Date(Number(elements.month.value.slice(0, 4)), Number(elements.month.value.slice(5, 7)), 0).getDate();
     elements.form.elements.data.value = `${elements.month.value}-${String(Math.min(new Date().getDate(), lastDay)).padStart(2, '0')}`;
@@ -414,6 +444,7 @@ function openForm(transaction = null) {
   }
   enforceDepositStatus();
   toggleCardField();
+  syncDepositFields();
   elements.dialog.showModal();
   setTimeout(() => elements.form.elements.descricao.focus(), 0);
 }
@@ -424,10 +455,15 @@ async function saveTransaction(event) {
   const existingId = String(form.get('id') || '');
   const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(form.get('tipo'));
   const status = isDeposit ? 'Pago' : form.get('status');
+  const caixinha = String(form.get('caixinha') || '').trim();
+  if (isDeposit && !caixinha) {
+    notify('Selecione a caixinha para o depósito.', true);
+    return;
+  }
   const transaction = {
     id: existingId, tipo: form.get('tipo'), descricao: form.get('descricao').trim(), valor: Number(form.get('valor')),
     data: form.get('data'), dataPg: status === 'Pago' ? form.get('data') : '', mesRef: form.get('data').slice(0, 7),
-    status, categoria: form.get('categoria'), responsavel: form.get('responsavel'), parcelaAtual: 1, totalParcelas: 1,
+    status, categoria: isDeposit ? caixinha : String(form.get('categoria') || '').trim(), responsavel: form.get('responsavel'), parcelaAtual: 1, totalParcelas: 1,
     idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem'), cartao: form.get('cartao') || ''
   };
   const action = existingId ? 'update' : 'create';
@@ -458,10 +494,38 @@ function enforceDepositStatus() {
 
 function toggleCardField() {
   const field = document.querySelector('#card-field');
+  const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(elements.form.elements.tipo.value);
+  if (isDeposit) {
+    field.hidden = true;
+    elements.form.elements.cartao.required = false;
+    elements.form.elements.cartao.value = '';
+    return;
+  }
   const isCardBill = normalize(elements.form.elements.categoria.value) === 'cartao de credito';
   field.hidden = !isCardBill;
   elements.form.elements.cartao.required = isCardBill;
   if (!isCardBill) elements.form.elements.cartao.value = '';
+}
+
+function syncDepositFields() {
+  const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(elements.form.elements.tipo.value);
+  const categoryField = document.querySelector('#category-field');
+  const boxField = document.querySelector('#box-field');
+  if (categoryField) categoryField.hidden = isDeposit;
+  if (boxField) boxField.hidden = !isDeposit;
+  const categorySelect = document.querySelector('#category-select');
+  const boxSelect = document.querySelector('#box-select');
+  if (categorySelect) categorySelect.required = !isDeposit;
+  if (boxSelect) boxSelect.required = isDeposit;
+  if (isDeposit) {
+    const cardField = document.querySelector('#card-field');
+    if (cardField) {
+      cardField.hidden = true;
+      elements.form.elements.cartao.required = false;
+    }
+  } else {
+    toggleCardField();
+  }
 }
 
 async function handleTransactionAction(event) {

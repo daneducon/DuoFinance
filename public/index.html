@@ -144,16 +144,17 @@
         <div class="view-heading">
           <div>
             <p class="eyebrow">ROTINA DO MÊS</p>
-            <h2>Contas a pagar</h2>
-            <p id="transaction-count">0 contas no período</p>
+            <h2>Contas do mês</h2>
+            <p id="transaction-count">0 lançamentos no período</p>
           </div>
         </div>
         <div class="list-tools panel"><label class="search-field"><span aria-hidden="true">⌕</span><input
               id="transaction-search" type="search"
               placeholder="Buscar por descrição, categoria ou responsável..."></label>
           <div class="filter-tabs" id="transaction-filters"><button class="active"
-              data-filter="all">Todas</button><button data-filter="pending">Pendentes</button><button
-              data-filter="paid">Pagas</button></div>
+              data-filter="all">Todas</button><button data-filter="income">Receitas</button><button
+              data-filter="expense">Despesas</button><button data-filter="deposit">Depósitos</button><button
+              data-filter="pending">Pendentes</button><button data-filter="paid">Pagas</button></div>
         </div>
         <div class="detailed-list" id="transaction-list"></div>
       </section>
@@ -288,8 +289,9 @@
             <option>Pago</option>
             <option>Pendente</option>
           </select></label>
-        <label class="field"><span>Categoria</span><select name="categoria" id="category-select"
+        <label class="field" id="category-field"><span>Categoria</span><select name="categoria" id="category-select"
             required></select></label>
+        <label class="field" id="box-field" hidden><span>Caixinha</span><select name="caixinha" id="box-select"></select></label>
         <label class="field" id="card-field" hidden><span>Cartão</span><select name="cartao">
             <option value="">Selecione</option><option>Leroy</option><option>Camicado</option>
           </select></label>
