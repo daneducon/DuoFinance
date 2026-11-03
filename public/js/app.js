@@ -183,7 +183,14 @@ function renderBoxes(boxes) {
     const movements = state.transactions.filter((item) => item.origem === box.nome && item.fonte !== 'pluggy' && item.fonte !== 'pluggy-bill').slice(0, 3);
     return `<div class="box-movements">${movements.length ? movements.map((item) => `<span>${fullDate(item.data)} · ${escapeHtml(item.tipo)} · ${money(item.valor)}</span>`).join('') : '<span>Sem movimentos neste mês</span>'}</div>`;
   };
-  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div>${movementsHtml(box)}</article>`;
+  const projectionHtml = (projection) => {
+    if (!projection) return '';
+    if (projection.status === 'reached') return '<div class="box-projection">Meta atingida</div>';
+    if (projection.status === 'no-contribution') return '<div class="box-projection">Sem aporte recorrente no histórico</div>';
+    const plural = projection.monthsNeeded === 1 ? 'mês' : 'meses';
+    return `<div class="box-projection">Aporte médio ${money(projection.monthlyAverage)}/mês · meta em ${fullMonthLabel(projection.targetMonth)} de ${projection.targetMonth.slice(0, 4)} (${projection.monthsNeeded} ${plural})</div>`;
+  };
+  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div>${movementsHtml(box)}${projectionHtml(box.projection)}</article>`;
   elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
   const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
   document.querySelector('#favorite-box-list').innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
