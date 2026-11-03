@@ -166,7 +166,7 @@ function renderCashFlow() {
   badge.textContent = hasRisk ? 'Atenção necessária' : 'Mês protegido';
   badge.className = `risk-badge ${hasRisk ? 'danger' : 'safe'}`;
   const periods = cashFlow.negativePeriods.map((period) => `entre ${shortDate(period.start)} e ${shortDate(period.end)} o saldo fica em <strong class="negative">${money(period.minimum)}</strong>`).join('; ');
-  summary.innerHTML = `<div><span>Saldo hoje</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: ${periods}.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
+  summary.innerHTML = `<div><span>Saldo inicial do mês</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: ${periods}.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
 }
 
 function renderCategoryChart(summary) {
@@ -686,39 +686,53 @@ function cycleCard(cycle, today) {
   const pill = cycle.status === 'falta' ? `Faltam ${money(cycle.falta)}` : `Folga de ${money(cycle.menorSaldo)}`;
   const starter = cycle.inicio ? `${escapeHtml(cycle.inicio.descricao)} · ${money(cycle.inicio.valor)}` : 'Início do mês';
   const timing = cycle.end < today ? 'passado' : cycle.start <= today ? 'atual' : 'futuro';
-  return `<article class="cycle-card ${cycle.status} ${timing}"><p class="cycle-start">${starter}</p><h3>${shortDate(cycle.start)} a ${shortDate(cycle.end)}</h3><div class="cycle-row"><span>Saldo no início</span><strong>${money(cycle.saldoInicio)}</strong></div><div class="cycle-row"><span>Compromissos</span><strong>${money(cycle.compromissos)}</strong></div><div class="cycle-row"><span>Entradas</span><strong>${money(cycle.entradas)}</strong></div><div class="cycle-row"><span>Menor saldo</span><strong class="${cycle.menorSaldo < 0 ? 'negative' : ''}">${money(cycle.menorSaldo)}</strong></div><span class="cycle-pill ${cycle.status}">${pill}</span></article>`;
+  return `<article class="cycle-card ${cycle.status} ${timing}"><p class="cycle-start">${starter}</p><h3>${shortDate(cycle.start)} a ${shortDate(cycle.end)}</h3><div class="cycle-row"><span>Saldo no início</span><strong>${money(cycle.saldoInicio)}</strong></div><div class="cycle-row"><span>Compromissos</span><strong>${money(cycle.compromissos)}</strong></div><div class="cycle-row"><span>Menor saldo</span><strong class="${cycle.menorSaldo < 0 ? 'negative' : ''}">${money(cycle.menorSaldo)}</strong></div><span class="cycle-pill ${cycle.status}">${pill}</span></article>`;
 }
 
 function todayText() {
   return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
+function monthEffectLocal(item) {
+  if (item.tipo === 'Receita' || item.tipo === 'Estorno') return Number(item.valor || 0);
+  if (item.tipo === 'Despesa' || item.tipo === 'Pagamento Fatura') return -Number(item.valor || 0);
+  return 0;
+}
+
+function calculateLocalLedger() {
+  const month = elements.month.value;
+  const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const movements = new Map();
+  for (const item of state.transactions) {
+    if (!item.data || !item.data.startsWith(`${month}-`)) continue;
+    movements.set(item.data, (movements.get(item.data) || 0) + monthEffectLocal(item));
+  }
+  let balance = 0;
+  return Array.from({ length: days }, (_, index) => {
+    const date = `${month}-${String(index + 1).padStart(2, '0')}`;
+    const movement = movements.get(date) || 0;
+    balance += movement;
+    return { date, movement, balance };
+  });
+}
+
 function calculateLocalCashCycles() {
   const today = todayText();
   const month = elements.month.value;
   if (month < today.slice(0, 7)) return { pastMonth: true, cycles: [], safeToSpend: null };
-  const anchor = state.summary?.saldoAtual || 0;
-  const pending = state.transactions.filter((item) => item.status === 'Pendente' && item.data).map((item) => ({ date: item.data < today ? today : item.data, effect: accountEffect(item) })).filter((item) => item.effect !== 0);
-  const balanceOn = (date) => anchor + pending.filter((item) => item.date <= date).reduce((sum, item) => sum + item.effect, 0);
-  const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
-  const monthStart = `${month}-01`;
-  const monthEnd = `${month}-${String(days).padStart(2, '0')}`;
-  const receipts = state.transactions.filter((item) => item.tipo === 'Receita' && item.data && item.data >= monthStart).sort((a, b) => a.data.localeCompare(b.data));
-  const boundaries = [...new Set([monthStart, ...receipts.map((item) => item.data)])].sort();
-  const inMonth = boundaries.filter((date) => date <= monthEnd);
-  const nextAfter = receipts.find((item) => item.data > monthEnd)?.data;
-  const cycles = inMonth.map((start, index) => {
-    const nextStart = inMonth[index + 1] || nextAfter;
-    const end = nextStart ? shiftDateLocal(nextStart, -1) : monthEnd;
-    const dates = [];
-    for (let date = start; date <= end; date = shiftDateLocal(date, 1)) dates.push(date);
-    const menorSaldo = Math.min(...dates.map(balanceOn));
-    const future = dates.filter((date) => date >= today);
-    const livre = future.length ? Math.min(...future.map(balanceOn)) : menorSaldo;
-    const compromissos = pending.filter((item) => item.date >= start && item.date <= end && item.effect < 0).reduce((sum, item) => sum - item.effect, 0);
-    const entradas = pending.filter((item) => item.date > start && item.date <= end && item.effect > 0).reduce((sum, item) => sum + item.effect, 0);
+  const points = calculateLocalLedger();
+  const monthEnd = points.at(-1).date;
+  const receipts = state.transactions.filter((item) => item.tipo === 'Receita' && item.data && item.data.startsWith(`${month}-`)).sort((a, b) => a.data.localeCompare(b.data));
+  const boundaries = [...new Set([`${month}-01`, ...receipts.map((item) => item.data)])].sort();
+  const cycles = boundaries.map((start, index) => {
+    const end = boundaries[index + 1] ? shiftDateLocal(boundaries[index + 1], -1) : monthEnd;
+    const days = points.filter((point) => point.date >= start && point.date <= end);
+    const menorSaldo = Math.min(...days.map((point) => point.balance));
+    const future = days.filter((point) => point.date >= today);
+    const livre = future.length ? Math.min(...future.map((point) => point.balance)) : menorSaldo;
+    const compromissos = days.reduce((sum, point) => sum + Math.max(0, -point.movement), 0);
     const starter = receipts.find((item) => item.data === start);
-    return { start, end, inicio: starter ? { descricao: starter.descricao, valor: starter.valor, status: starter.status } : null, saldoInicio: balanceOn(start), entradas, compromissos, saldoFim: balanceOn(end), menorSaldo, livre, status: menorSaldo < 0 ? 'falta' : 'ok', falta: Math.max(0, -menorSaldo) };
+    return { start, end, inicio: starter ? { descricao: starter.descricao, valor: starter.valor, status: starter.status } : null, saldoInicio: days[0].balance, compromissos, saldoFim: days.at(-1).balance, menorSaldo, livre, status: menorSaldo < 0 ? 'falta' : 'ok', falta: Math.max(0, -menorSaldo) };
   });
   const current = cycles.find((cycle) => cycle.start <= today && today <= cycle.end);
   return { pastMonth: false, cycles, safeToSpend: current ? Math.max(0, current.livre) : null };
@@ -731,32 +745,19 @@ function shiftDateLocal(date, days) {
 }
 
 function calculateLocalCashFlow() {
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-  const month = elements.month.value;
-  if (month < today.slice(0, 7)) return { openingBalance: null, closingBalance: null, minimumBalance: null, negativePeriods: [], points: [], pastMonth: true };
-  const anchor = state.summary?.saldoAtual || 0;
-  const pending = state.transactions.filter((item) => item.status === 'Pendente' && item.data).map((item) => ({ date: item.data < today ? today : item.data, effect: accountEffect(item) }));
-  const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
-  const points = [];
-  for (let day = 1; day <= days; day++) {
-    const date = `${month}-${String(day).padStart(2, '0')}`;
-    if (date < (month === today.slice(0, 7) ? today : `${month}-01`)) continue;
-    const movement = pending.filter((item) => item.date === date).reduce((sum, item) => sum + item.effect, 0);
-    const balance = anchor + pending.filter((item) => item.date <= date).reduce((sum, item) => sum + item.effect, 0);
-    points.push({ date, movement, balance });
-  }
+  const points = calculateLocalLedger();
   const negativePeriods = [];
   let open = null;
   for (const point of points) {
     if (point.balance < 0 && !open) open = { start: point.date, minimum: point.balance };
     if (point.balance < 0) open.minimum = Math.min(open.minimum, point.balance);
     if (point.balance >= 0 && open) {
-      negativePeriods.push({ ...open, end: points[points.indexOf(point) - 1].date });
+      negativePeriods.push({ ...open, end: shiftDateLocal(point.date, -1) });
       open = null;
     }
   }
   if (open) negativePeriods.push({ ...open, end: points.at(-1).date });
-  return { openingBalance: points[0]?.balance ?? anchor, closingBalance: points.at(-1)?.balance ?? anchor, minimumBalance: Math.min(...points.map((point) => point.balance)), negativePeriods, points };
+  return { openingBalance: 0, closingBalance: points.at(-1).balance, minimumBalance: Math.min(0, ...points.map((point) => point.balance)), negativePeriods, points };
 }
 
 function calculateBoxBase(boxes, transactions) {

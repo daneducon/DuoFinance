@@ -47,8 +47,8 @@ async function getFinances(req, res) {
     configuration,
     mentor,
     summary,
-    cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
-    cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
+    cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month),
+    cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso() }),
     analysis: buildAnalysis(accountingTransactions, month)
   });
 }
