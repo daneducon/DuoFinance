@@ -18,16 +18,22 @@ self.addEventListener('fetch', (event) => {
   }
   if (requestUrl.pathname.startsWith('/css/') || requestUrl.pathname.startsWith('/js/')) {
     event.respondWith(fetch(event.request).then((response) => {
-      if (response.ok) caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
+      if (response.ok) cacheCopy(event.request, response);
       return response;
     }).catch(() => caches.match(event.request)));
     return;
   }
   event.respondWith(caches.match(event.request).then((cached) => cached || fetch(event.request).then((response) => {
-    if (response.ok) caches.open(CACHE).then((cache) => cache.put(event.request, response.clone()));
+    if (response.ok) cacheCopy(event.request, response);
     return response;
   })));
 });
+
+// Clona antes de devolver a resposta: depois que o navegador consome o corpo, clone() falha.
+function cacheCopy(request, response) {
+  const copy = response.clone();
+  caches.open(CACHE).then((cache) => cache.put(request, copy));
+}
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-finances') event.waitUntil(syncFinances());
