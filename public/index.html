@@ -248,16 +248,18 @@
         </section>
         <section class="card-metrics" aria-label="Resumo de cartões e contas">
           <article><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong></article>
-          <article><span>Teto do mês</span><strong id="credit-limit-total">R$ 0,00</strong></article>
-          <article><span id="month-bill-label">Consumo dos cartões</span><strong id="month-bill-total">R$ 0,00</strong></article>
-          <article><span>Orçamento restante para o mês</span><strong id="credit-limit-available">R$ 0,00</strong></article>
+          <article><span id="month-bill-label">Vencimentos do mês</span><strong id="month-bill-total">R$ 0,00</strong></article>
+          <article><span>Limite disponível nos cartões</span><strong id="card-available-total">R$ 0,00</strong></article>
+          <article><span>Teto do mês (R$ 3.500,00 fixo)</span><strong id="credit-limit-total">R$ 0,00</strong><small id="credit-limit-available"></small></article>
         </section>
+        <div id="ceiling-panel"></div>
         <div class="view-heading cards-heading">
           <div><p class="eyebrow">CARTEIRA</p><h2>Cartões conectados</h2><p>Clique em um cartão para ver os gastos do mês.</p></div>
         </div>
         <div class="connected-card-grid" id="connected-card-grid"></div>
+        <div id="next-bills-panel"></div>
         <article class="panel card-expenses-panel">
-          <div class="panel-head"><div><p class="eyebrow">MÊS SELECIONADO</p><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
+          <div class="panel-head"><div><p class="eyebrow">COMPRAS PELA DATA DA COMPRA</p><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
           <div class="card-transaction-list" id="card-transaction-list"></div>
         </article>
       </section>
