@@ -164,7 +164,7 @@ function renderCashFlow() {
   badge.textContent = hasRisk ? 'Atenção necessária' : 'Mês protegido';
   badge.className = `risk-badge ${hasRisk ? 'danger' : 'safe'}`;
   const periods = cashFlow.negativePeriods.map((period) => `${shortDate(period.start)} a ${shortDate(period.end)}`).join(', ');
-  summary.innerHTML = `<div><span>Saldo inicial</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: <strong>${periods}</strong>.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
+  summary.innerHTML = `<div><span>Saldo hoje</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: <strong>${periods}</strong>.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
 }
 
 function renderCategoryChart(summary) {
@@ -664,17 +664,23 @@ function calculateSummary() {
 }
 
 function calculateLocalCashFlow() {
-  const openingBalance = state.cashFlow?.openingBalance || 0;
-  const days = new Date(Number(elements.month.value.slice(0, 4)), Number(elements.month.value.slice(5, 7)), 0).getDate();
-  let balance = openingBalance;
-  const points = Array.from({ length: days }, (_, index) => {
-    const date = `${elements.month.value}-${String(index + 1).padStart(2, '0')}`;
-    const movement = state.transactions.filter((item) => item.data === date).reduce((sum, item) => sum + accountEffect(item), 0);
-    balance += movement;
-    return { date, movement, balance };
-  });
-  const negativePeriods = points.filter((point) => point.balance < 0).length ? [{ start: points.find((point) => point.balance < 0).date, end: [...points].reverse().find((point) => point.balance < 0).date }] : [];
-  return { openingBalance, closingBalance: balance, minimumBalance: Math.min(...points.map((point) => point.balance)), negativePeriods, points };
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const month = elements.month.value;
+  if (month < today.slice(0, 7)) return { openingBalance: null, closingBalance: null, minimumBalance: null, negativePeriods: [], points: [], pastMonth: true };
+  const anchor = state.summary?.saldoAtual || 0;
+  const pending = state.transactions.filter((item) => item.status === 'Pendente' && item.data).map((item) => ({ date: item.data < today ? today : item.data, effect: accountEffect(item) }));
+  const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const points = [];
+  for (let day = 1; day <= days; day++) {
+    const date = `${month}-${String(day).padStart(2, '0')}`;
+    if (date < (month === today.slice(0, 7) ? today : `${month}-01`)) continue;
+    const movement = pending.filter((item) => item.date === date).reduce((sum, item) => sum + item.effect, 0);
+    const balance = anchor + pending.filter((item) => item.date <= date).reduce((sum, item) => sum + item.effect, 0);
+    points.push({ date, movement, balance });
+  }
+  const negative = points.filter((point) => point.balance < 0);
+  const negativePeriods = negative.length ? [{ start: negative[0].date, end: negative.at(-1).date }] : [];
+  return { openingBalance: points[0]?.balance ?? anchor, closingBalance: points.at(-1)?.balance ?? anchor, minimumBalance: Math.min(...points.map((point) => point.balance)), negativePeriods, points };
 }
 
 function calculateBoxBase(boxes, transactions) {
