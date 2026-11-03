@@ -74,7 +74,7 @@ test('projeta o caixa a partir do saldo bancário e aponta intervalo negativo', 
   assert.equal(flow.openingBalance, 500);
   assert.equal(flow.minimumBalance, -200);
   assert.equal(flow.closingBalance, 200);
-  assert.deepEqual(flow.negativePeriods, [{ start: '2026-09-05', end: '2026-09-09' }]);
+  assert.deepEqual(flow.negativePeriods, [{ start: '2026-09-05', end: '2026-09-09', minimum: -200 }]);
 });
 
 test('aplica pendência vencida hoje e ignora meses passados', () => {

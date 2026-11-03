@@ -163,8 +163,8 @@ function renderCashFlow() {
   const hasRisk = cashFlow.negativePeriods.length > 0;
   badge.textContent = hasRisk ? 'Atenção necessária' : 'Mês protegido';
   badge.className = `risk-badge ${hasRisk ? 'danger' : 'safe'}`;
-  const periods = cashFlow.negativePeriods.map((period) => `${shortDate(period.start)} a ${shortDate(period.end)}`).join(', ');
-  summary.innerHTML = `<div><span>Saldo hoje</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: <strong>${periods}</strong>.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
+  const periods = cashFlow.negativePeriods.map((period) => `entre ${shortDate(period.start)} e ${shortDate(period.end)} o saldo fica em <strong class="negative">${money(period.minimum)}</strong>`).join('; ');
+  summary.innerHTML = `<div><span>Saldo hoje</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: ${periods}.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
 }
 
 function renderCategoryChart(summary) {
@@ -678,8 +678,17 @@ function calculateLocalCashFlow() {
     const balance = anchor + pending.filter((item) => item.date <= date).reduce((sum, item) => sum + item.effect, 0);
     points.push({ date, movement, balance });
   }
-  const negative = points.filter((point) => point.balance < 0);
-  const negativePeriods = negative.length ? [{ start: negative[0].date, end: negative.at(-1).date }] : [];
+  const negativePeriods = [];
+  let open = null;
+  for (const point of points) {
+    if (point.balance < 0 && !open) open = { start: point.date, minimum: point.balance };
+    if (point.balance < 0) open.minimum = Math.min(open.minimum, point.balance);
+    if (point.balance >= 0 && open) {
+      negativePeriods.push({ ...open, end: points[points.indexOf(point) - 1].date });
+      open = null;
+    }
+  }
+  if (open) negativePeriods.push({ ...open, end: points.at(-1).date });
   return { openingBalance: points[0]?.balance ?? anchor, closingBalance: points.at(-1)?.balance ?? anchor, minimumBalance: Math.min(...points.map((point) => point.balance)), negativePeriods, points };
 }
 
