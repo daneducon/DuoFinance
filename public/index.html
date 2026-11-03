@@ -79,7 +79,7 @@
             <div class="balance" id="forecast-balance">R$ 0,00</div>
             <p class="balance-note" id="balance-note">Carregando seu panorama financeiro...</p>
           </div>
-          <div class="hero-orbit" aria-hidden="true"><span></span><span></span><strong>2</strong></div>
+          <div class="hero-orbit" aria-hidden="true"><span></span><span></span></div>
         </section>
         <section class="metric-grid" aria-label="Resumo financeiro">
           <article class="metric-card">
@@ -250,14 +250,13 @@
           <article><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong></article>
           <article><span id="month-bill-label">Vencimentos do mês</span><strong id="month-bill-total">R$ 0,00</strong></article>
           <article><span>Limite disponível nos cartões</span><strong id="card-available-total">R$ 0,00</strong></article>
-          <article><span>Teto do mês (R$ 3.500,00 fixo)</span><strong id="credit-limit-total">R$ 0,00</strong><small id="credit-limit-available"></small></article>
+          <article><span>Teto do mês</span><strong id="credit-limit-total">R$ 0,00</strong><small id="credit-limit-available"></small></article>
         </section>
         <div id="ceiling-panel"></div>
         <div class="view-heading cards-heading">
           <div><p class="eyebrow">CARTEIRA</p><h2>Cartões conectados</h2><p>Clique em um cartão para ver os gastos do mês.</p></div>
         </div>
         <div class="connected-card-grid" id="connected-card-grid"></div>
-        <div id="next-bills-panel"></div>
         <article class="panel card-expenses-panel">
           <div class="panel-head"><div><p class="eyebrow">COMPRAS PELA DATA DA COMPRA</p><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
           <div class="card-transaction-list" id="card-transaction-list"></div>
@@ -286,7 +285,7 @@
           </select></label>
         <label class="field"><span>Valor</span><input name="valor" type="number" min="0.01" step="0.01"
             placeholder="0,00" required></label>
-        <label class="field"><span>Data</span><input name="data" type="date" required></label>
+        <label class="field"><span id="date-label">Data</span><input name="data" type="date" required></label>
         <label class="field"><span>Status</span><select name="status">
             <option>Pago</option>
             <option>Pendente</option>
@@ -302,12 +301,8 @@
             <option>Ela</option>
             <option>Nós</option>
           </select></label>
-        <label class="field full"><span>Origem</span><select name="origem" id="origin-select">
-            <option>Conta Corrente</option>
-            <option>Cartão de Crédito</option>
-            <option>Externo</option>
-          </select></label>
-        <label class="check-field full"><input name="recorrente" type="checkbox"><span>Este lançamento é
+        <label class="field full"><span>Origem</span><select name="origem" id="origin-select"></select></label>
+        <label class="check-field full"><input name="recorrente" type="checkbox" aria-label="Lançamento recorrente"><span>Este lançamento é
             recorrente</span></label>
       </div>
       <div class="dialog-actions"><button type="button" class="button ghost" data-close-dialog>Cancelar</button><button

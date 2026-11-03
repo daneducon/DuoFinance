@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
+const { projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
 const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 const { buildMonthlyCardBudget, budgetRisk, spendingFlag, isManualCardBill } = require('../lib/budget');
 
@@ -369,4 +369,27 @@ test('não projeta parcela futura que a Pluggy já devolve como transação', ()
   const bills = mapBills([], account, transactions);
   const november = bills.find((bill) => bill.dueDate.startsWith('2026-11'));
   assert.equal(november.total, 83.54);
+});
+
+test('projeta o mês em que a caixinha atinge a meta pelo aporte médio', () => {
+  const transactions = [
+    { mesRef: '2026-10', tipo: 'Depósito Caixinha', valor: 500, origem: 'Viagem', categoria: 'Metas' },
+    { mesRef: '2026-11', tipo: 'Depósito Caixinha', valor: 500, origem: 'Viagem', categoria: 'Metas' }
+  ];
+  const projection = projectBox(transactions, { nome: 'Viagem', meta: 8000, saldo: 1000 }, '2026-11');
+  assert.equal(projection.monthlyAverage, 500);
+  assert.equal(projection.monthsNeeded, 14);
+  assert.equal(projection.targetMonth, '2028-01');
+});
+
+test('projeção desconta resgates e trata meta atingida e caixinha sem aporte', () => {
+  const transactions = [
+    { mesRef: '2026-10', tipo: 'Depósito Caixinha', valor: 600, origem: 'Reserva', categoria: 'Metas' },
+    { mesRef: '2026-11', tipo: 'Resgate', valor: 200, origem: 'Reserva', categoria: 'Metas' }
+  ];
+  const projection = projectBox(transactions, { nome: 'Reserva', meta: 1000, saldo: 400 }, '2026-11');
+  assert.equal(projection.monthlyAverage, 200);
+  assert.equal(projection.monthsNeeded, 3);
+  assert.equal(projectBox([], { nome: 'Aliança', meta: 3500, saldo: 0 }, '2026-11').status, 'no-contribution');
+  assert.equal(projectBox([], { nome: 'Casal', meta: 100, saldo: 150 }, '2026-11').status, 'reached');
 });
