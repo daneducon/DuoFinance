@@ -271,41 +271,42 @@ test('calcula teto com tres meses incluindo meses zerados e limite absoluto', ()
   ];
   const pluggy = [{ mesRef: '2026-09', accountId: 'a', tipo: 'Despesa', valor: 200, categoria: 'Food delivery' }];
   const bills = [
-    { mesRef: '2026-07', accountId: 'a', valor: 900 },
+    { mesRef: '2026-09', accountId: 'a', valor: 900 },
     { mesRef: '2026-09', accountId: 'b', valor: 600 },
     { mesRef: '2026-10', accountId: 'a', valor: 200 }
   ];
   const manual = [
-    { mesRef: '2026-08', tipo: 'Despesa', valor: 300, categoria: 'Cartão de Crédito', cartao: 'Leroy' },
-    { mesRef: '2026-09', tipo: 'Despesa', valor: 100, categoria: 'Cartão de Crédito', cartao: 'Camicado' }
+    { mesRef: '2026-09', tipo: 'Despesa', valor: 300, categoria: 'Cartão de Crédito', cartao: 'Leroy' },
+    { mesRef: '2026-09', tipo: 'Despesa', valor: 100, categoria: 'Cartão de Crédito', cartao: 'Camicado' },
+    { mesRef: '2026-10', tipo: 'Despesa', valor: 50, categoria: 'Cartão de Crédito', cartao: 'Leroy' }
   ];
   const budget = buildMonthlyCardBudget('2026-09', pluggy, manual, accounts, null, bills);
-  assert.deepEqual(budget.historicalTotals, [900, 0, 900]);
-  assert.equal(budget.historicalAverage, 600);
-  assert.equal(budget.ceiling, 570);
-  assert.equal(budget.fixedSpending, 100);
-  assert.equal(budget.connectedBudget, 470);
-  assert.equal(budget.consumption, 300);
-  assert.equal(budget.remaining, 270);
-  assert.equal(Math.round(budget.cards[0].budget), 282);
-  assert.equal(Math.round(budget.cards[1].budget), 188);
-  assert.equal(budget.cards[2].budget, 0);
+  assert.equal(budget.ceiling, 3500);
+  assert.equal(budget.fixedSpending, 400);
+  assert.equal(budget.connectedSpending, 1500);
+  assert.equal(budget.consumption, 1900);
+  assert.equal(budget.remaining, 1600);
+  assert.deepEqual(budget.cards.map((card) => card.spent), [900, 600, 0]);
 
-  const highHistory = ['2026-07', '2026-08', '2026-09'].map((mesRef) => ({ mesRef, accountId: 'a', valor: 4000 }));
-  assert.equal(buildMonthlyCardBudget('2026-09', [], [], accounts, null, highHistory).ceiling, 3000);
+  const snapshotCeilingIgnored = buildMonthlyCardBudget('2026-09', [], [], accounts, { historicalAverage: 600, ceiling: 570, historicalTotals: [900, 0, 900] }, []);
+  assert.equal(snapshotCeilingIgnored.ceiling, 3500);
+  assert.deepEqual(snapshotCeilingIgnored.historicalTotals, [900, 0, 900]);
+});
 
-  const frozen = buildMonthlyCardBudget('2026-09', [], [], accounts, { historicalAverage: 600, ceiling: 570, historicalTotals: [900, 0, 900] }, highHistory);
-  assert.equal(frozen.ceiling, 570);
-  assert.deepEqual(frozen.historicalTotals, [900, 0, 900]);
+test('usa a data de vencimento do lançamento manual como mês do teto', () => {
+  const leroy = { cartao: 'Leroy', mesRef: '2026-11', data: '2026-11-17', categoria: 'Cartão de Crédito', tipo: 'Despesa', valor: 395 };
+  const camicado = { cartao: 'Camicado', mesRef: '2026-11', data: '2026-11-19', categoria: 'Cartão de Crédito', tipo: 'Despesa', valor: 167.72 };
+  assert.equal(buildMonthlyCardBudget('2026-11', [], [leroy, camicado], []).fixedSpending, 562.72);
+  assert.equal(buildMonthlyCardBudget('2026-12', [], [leroy, camicado], []).fixedSpending, 0);
 });
 
 test('usa as faturas consolidadas no consumo sem duplicar transacoes', () => {
   const accounts = ['a', 'b', 'c'].map((id) => ({ id, type: 'CREDIT', subtype: 'CREDIT_CARD' }));
   const transactions = [{ mesRef: '2026-09', accountId: 'a', tipo: 'Despesa', valor: 1093.78, categoria: 'Food delivery' }];
   const bills = [
-    { mesRef: '2026-10', accountId: 'a', valor: 783.2 },
-    { mesRef: '2026-10', accountId: 'b', valor: 1621.86 },
-    { mesRef: '2026-10', accountId: 'c', valor: 476.53 }
+    { mesRef: '2026-09', accountId: 'a', valor: 783.2 },
+    { mesRef: '2026-09', accountId: 'b', valor: 1621.86 },
+    { mesRef: '2026-09', accountId: 'c', valor: 476.53 }
   ];
   const manual = [
     { mesRef: '2026-09', tipo: 'Despesa', valor: 395, categoria: 'Cartão de Crédito', cartao: 'Leroy' },
@@ -314,7 +315,7 @@ test('usa as faturas consolidadas no consumo sem duplicar transacoes', () => {
   const budget = buildMonthlyCardBudget('2026-09', transactions, manual, accounts, { historicalAverage: 4000, ceiling: 3000, historicalTotals: [4000, 4000, 4000] }, bills);
   assert.equal(budget.connectedSpending, 2881.59);
   assert.equal(budget.consumption, 3492.59);
-  assert.ok(Math.abs(budget.remaining - -492.59) < 1e-9);
+  assert.ok(Math.abs(budget.remaining - 7.41) < 1e-9);
   assert.deepEqual(budget.cards.map((card) => card.spent), [783.2, 1621.86, 476.53]);
 });
 
