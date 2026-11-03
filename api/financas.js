@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -48,6 +48,7 @@ async function getFinances(req, res) {
     mentor,
     summary,
     cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
+    cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
     analysis: buildAnalysis(accountingTransactions, month)
   });
 }

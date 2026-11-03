@@ -63,3 +63,15 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.app-shell>main,.tab-view,
 .card-available{line-height:1.7;margin-top:12px;text-transform:none;letter-spacing:0;font-size:9px}
 .box-movements{margin-top:14px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:5px}.box-movements span{color:var(--muted);font-size:10px}
 .box-projection{margin-top:10px;color:#9fd9bd;font-size:11px;line-height:1.5}
+.cycle-headline{margin:16px 0 0;font-size:13px;color:#d9e7e0;line-height:1.5}
+.cycle-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin-top:14px;min-width:0}
+.cycle-card{min-width:0;border:1px solid var(--line);border-radius:14px;padding:16px;background:#09130f;overflow-wrap:anywhere}
+.cycle-card.falta{border-color:#6b2f27}
+.cycle-card h3{font:700 14px var(--font-display);margin:0 0 6px}
+.cycle-row{display:flex;justify-content:space-between;gap:8px;font-size:11px;margin-top:8px;color:var(--muted)}
+.cycle-row strong{color:var(--text);text-align:right;white-space:nowrap}
+.cycle-pill{display:inline-block;margin-top:12px;padding:5px 10px;border-radius:14px;font-size:10px;font-weight:700}
+.cycle-pill.ok{background:#123628;color:var(--green)}
+.cycle-pill.falta{background:#3a211f;color:#ff9b8d}
+.cashflow-detail{margin-top:16px}
+.cashflow-detail summary{cursor:pointer;color:var(--muted);font-size:11px}
