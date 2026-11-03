@@ -75,3 +75,6 @@ html,body{max-width:100%;overflow-x:hidden}.app-shell,.app-shell>main,.tab-view,
 .cycle-pill.falta{background:#3a211f;color:#ff9b8d}
 .cashflow-detail{margin-top:16px}
 .cashflow-detail summary{cursor:pointer;color:var(--muted);font-size:11px}
+.cycle-start{margin:0 0 4px;color:#9fd9bd;font-size:10px;text-transform:uppercase;letter-spacing:.06em}
+.cycle-card.passado{opacity:.6}
+.cycle-card.atual{border-color:var(--green)}
