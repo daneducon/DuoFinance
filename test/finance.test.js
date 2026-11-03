@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
+const { calculateCashCycles, projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
 const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 const { buildMonthlyCardBudget, budgetRisk, spendingFlag, isManualCardBill } = require('../lib/budget');
 
@@ -64,16 +64,23 @@ test('valida edicao de nome e meta da caixinha', () => {
   assert.throws(() => validateBox({ currentName: 'Viagem', nome: 'Reserva', meta: -1 }), /negativa/);
 });
 
-test('identifica intervalo de caixa negativo no mes', () => {
+test('projeta o caixa a partir do saldo bancário e aponta intervalo negativo', () => {
   const transactions = [
-    { tipo: 'Receita', valor: 500, data: '2026-08-20', origem: 'Conta Corrente' },
-    { tipo: 'Despesa', valor: 700, data: '2026-09-05', origem: 'Conta Corrente' },
-    { tipo: 'Receita', valor: 400, data: '2026-09-10', origem: 'Conta Corrente' }
+    { tipo: 'Despesa', valor: 700, data: '2026-09-05', status: 'Pendente', origem: 'Conta Corrente' },
+    { tipo: 'Receita', valor: 400, data: '2026-09-10', status: 'Pendente', origem: 'Conta Corrente' },
+    { tipo: 'Despesa', valor: 100, data: '2026-09-02', status: 'Pago', origem: 'Conta Corrente' }
   ];
-  const flow = calculateCashFlow(transactions, '2026-09');
+  const flow = calculateCashFlow(transactions, '2026-09', { today: '2026-09-03', anchorBalance: 500 });
   assert.equal(flow.openingBalance, 500);
   assert.equal(flow.minimumBalance, -200);
-  assert.deepEqual(flow.negativePeriods, [{ start: '2026-09-05', end: '2026-09-09' }]);
+  assert.equal(flow.closingBalance, 200);
+  assert.deepEqual(flow.negativePeriods, [{ start: '2026-09-05', end: '2026-09-09', minimum: -200 }]);
+});
+
+test('aplica pendência vencida hoje e ignora meses passados', () => {
+  const overdue = [{ tipo: 'Despesa', valor: 100, data: '2026-09-01', status: 'Pendente', origem: 'Conta Corrente' }];
+  assert.equal(calculateCashFlow(overdue, '2026-09', { today: '2026-09-03', anchorBalance: 500 }).openingBalance, 400);
+  assert.equal(calculateCashFlow([], '2026-08', { today: '2026-09-03', anchorBalance: 500 }).pastMonth, true);
 });
 
 test('agrupa despesas dos ultimos tres meses para analise', () => {
@@ -392,4 +399,23 @@ test('projeção desconta resgates e trata meta atingida e caixinha sem aporte',
   assert.equal(projection.monthsNeeded, 3);
   assert.equal(projectBox([], { nome: 'Aliança', meta: 3500, saldo: 0 }, '2026-11').status, 'no-contribution');
   assert.equal(projectBox([], { nome: 'Casal', meta: 100, saldo: 150 }, '2026-11').status, 'reached');
+});
+
+test('divide o mês em ciclos entre receitas e sinaliza o ciclo que fica no negativo', () => {
+  const transactions = [
+    { tipo: 'Despesa', valor: 300, data: '2026-11-04', status: 'Pendente', origem: 'Conta Corrente' },
+    { tipo: 'Receita', valor: 800, data: '2026-11-10', status: 'Pendente', origem: 'Conta Corrente' },
+    { tipo: 'Despesa', valor: 1200, data: '2026-11-15', status: 'Pendente', origem: 'Conta Corrente' }
+  ];
+  const result = calculateCashCycles(transactions, '2026-11', { today: '2026-11-03', anchorBalance: 500 });
+  assert.equal(result.cycles.length, 2);
+  assert.equal(result.cycles[0].start, '2026-11-03');
+  assert.equal(result.cycles[0].end, '2026-11-09');
+  assert.equal(result.cycles[0].menorSaldo, 200);
+  assert.equal(result.cycles[0].status, 'ok');
+  assert.equal(result.cycles[1].saldoInicio, 1000);
+  assert.equal(result.cycles[1].status, 'falta');
+  assert.equal(result.cycles[1].falta, 200);
+  assert.equal(result.safeToSpend, 200);
+  assert.equal(calculateCashCycles([], '2026-10', { today: '2026-11-03' }).pastMonth, true);
 });

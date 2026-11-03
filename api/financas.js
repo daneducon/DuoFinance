@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -38,12 +38,17 @@ async function getFinances(req, res) {
   summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month) }));
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
+  const pluggyAccounts = await sheets.listPluggyAccounts();
+  const hasBank = pluggyAccounts.some((account) => account.type === 'BANK');
+  const bankBalance = pluggyAccounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
+  const anchorBalance = hasBank ? bankBalance : summary.saldoAtual;
   send(res, 200, {
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
     mentor,
     summary,
-    cashFlow: calculateCashFlow([...manualTransactions, ...monthBills], month),
+    cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
+    cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso(), anchorBalance }),
     analysis: buildAnalysis(accountingTransactions, month)
   });
 }
