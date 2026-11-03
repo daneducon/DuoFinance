@@ -179,7 +179,11 @@ function renderCategoryChart(summary) {
 
 function renderBoxes(boxes) {
   document.querySelector('#boxes-total').textContent = money(boxes.reduce((sum, box) => sum + box.saldo, 0));
-  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div></article>`;
+  const movementsHtml = (box) => {
+    const movements = state.transactions.filter((item) => item.origem === box.nome && item.fonte !== 'pluggy' && item.fonte !== 'pluggy-bill').slice(0, 3);
+    return `<div class="box-movements">${movements.length ? movements.map((item) => `<span>${fullDate(item.data)} · ${escapeHtml(item.tipo)} · ${money(item.valor)}</span>`).join('') : '<span>Sem movimentos neste mês</span>'}</div>`;
+  };
+  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div>${movementsHtml(box)}</article>`;
   elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
   const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
   document.querySelector('#favorite-box-list').innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
@@ -256,7 +260,7 @@ function renderTransactions() {
     const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
     const paid = item.status === 'Pago';
     const billTag = item.situacao === 'Aberta' ? 'Aberta' : item.ajustada ? 'Ajustada' : item.situacao === 'Projetada' ? 'Projetada' : item.estimada ? 'Estimada' : 'Pluggy';
-    const source = bill ? item.fontePagamento : item.origem;
+    const source = bill ? item.fontePagamento : (item.origem === 'Cartão de Crédito' ? (item.cartao || 'Cartão') : item.origem);
     const displayedStatus = bill ? item.situacao : item.status;
     const statusClass = displayedStatus === 'Paga' || displayedStatus === 'Pago' ? 'paid' : displayedStatus === 'Projetada' ? 'projected' : displayedStatus === 'Aberta' ? 'open' : 'pending';
     return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit || billLocked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${billLocked ? `Fatura ${item.situacao.toLowerCase()}` : bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${statusClass}">${paid ? iconSvg('check') : ''}${escapeHtml(displayedStatus)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill && !billLocked ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : bill ? '<div class="transaction-actions synced-lock">Sincronizada</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
@@ -273,15 +277,17 @@ function renderCards() {
   const nextLabel = fullMonthLabel(data.paymentMonth || elements.month.value);
   document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
   document.querySelector('#month-bill-label').textContent = `Vencimentos em ${monthLabel}`;
-  document.querySelector('#month-bill-total').textContent = money(budget.consumption || 0);
-  document.querySelector('#card-available-total').textContent = money(data.availableLimit || 0);
+  const noCards = !cards.length;
+  document.querySelector('#month-bill-total').textContent = noCards ? '—' : money(budget.consumption || 0);
+  document.querySelector('#card-available-total').textContent = noCards ? '—' : money(data.availableLimit || 0);
   document.querySelector('#credit-limit-total').textContent = money(budget.ceiling || 0);
   const remaining = document.querySelector('#credit-limit-available');
-  remaining.textContent = Number(budget.remaining) < 0 ? `Passou ${money(-budget.remaining)}` : `Faltam ${money(budget.remaining || 0)}`;
+  remaining.textContent = noCards ? '—' : Number(budget.remaining) < 0 ? `Passou ${money(-budget.remaining)}` : `Faltam ${money(budget.remaining || 0)}`;
   remaining.classList.toggle('budget-negative', Number(budget.remaining) < 0);
   const status = document.querySelector('#pluggy-status');
   status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s).` : data.hasConfiguredItems ? 'Clique em Sincronizar dados para fazer a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel para importar seus dados.');
   status.classList.toggle('error-copy', Boolean(data.error));
+  document.querySelector('#sync-pluggy-button').hidden = Boolean(currentSession?.demo);
   renderCeiling(data, budget, monthLabel);
   const grid = document.querySelector('#connected-card-grid');
   grid.innerHTML = cards.length ? cards.map((card, index) => {
@@ -302,6 +308,10 @@ function renderCeiling(data, budget, monthLabel) {
     ...(data.bills || []).map((bill) => ({ label: bill.descricao, detail: `vence ${fullDate(bill.data)} · ${bill.estimada ? 'estimativa' : bill.status}`, value: bill.valor })),
     ...(data.manualBills || []).map((item) => ({ label: `${item.cartao} (manual)`, detail: `vence ${fullDate(item.data)} · ${item.status}`, value: item.valor }))
   ];
+  if (!lines.length && !budget.consumption) {
+    document.querySelector('#ceiling-panel').innerHTML = `<article class="panel ceiling-panel"><div class="ceiling-head"><div><p class="eyebrow">TETO PELO VENCIMENTO · ${monthLabel.toUpperCase()}</p><h2>Sem dados de cartão</h2></div></div><p class="muted-copy">Sincronize os dados bancários para ver o teto deste mês.</p></article>`;
+    return;
+  }
   const remaining = Number(budget.remaining || 0);
   const over = remaining < 0;
   const summary = over ? `Passou ${money(-remaining)}` : `Faltam ${money(remaining)}`;
@@ -378,8 +388,9 @@ function renderAnalysis() {
   const maximum = Math.max(...values, 1);
   document.querySelector('#trend-chart').innerHTML = months.map((month, index) => `<div class="trend-column"><strong>${money(values[index])}</strong><div><span style="height:${Math.max(3, values[index] / maximum * 100)}%;--bar:${Math.max(3, values[index] / maximum * 100)}%"></span></div><small>${monthLabel(month.month)}</small></div>`).join('') || '<div class="empty-state"><p>Histórico indisponível.</p></div>';
   const current = values.at(-1) || 0;
-  const average = values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length);
-  document.querySelector('#trend-metrics').innerHTML = `<div><span>Mês atual</span><strong>${money(current)}</strong></div><div><span>Média trimestral</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${money(Math.max(...values, 0))}</strong></div>`;
+  const filled = values.filter((value) => value > 0);
+  const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
+  document.querySelector('#trend-metrics').innerHTML = `<div><span>Mês atual</span><strong>${money(current)}</strong></div><div><span>Média (meses com gasto)</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${money(Math.max(...values, 0))}</strong></div>`;
   const responsibleValues = months.at(-1)?.responsibles || {};
   const responsibleKeys = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])];
   const responsibles = responsibleKeys.map((name) => [name, responsibleValues[name] || 0]);
@@ -410,8 +421,10 @@ function populateSelects() {
   if (categories.includes(currentCategory)) categorySelect.value = currentCategory;
   const originSelect = document.querySelector('#origin-select');
   const currentOrigin = originSelect.value;
-  const origins = ['Conta Corrente', 'Cartão de Crédito', 'Externo', ...state.configuration.caixinhas.map((box) => box.nome)];
-  originSelect.innerHTML = origins.map((item) => `<option>${escapeHtml(item)}</option>`).join('');
+  const accountOrigins = ['Conta Corrente', 'Externo'];
+  const boxOrigins = state.configuration.caixinhas.map((box) => box.nome);
+  const origins = [...accountOrigins, ...boxOrigins];
+  originSelect.innerHTML = `<optgroup label="Conta">${accountOrigins.map((item) => `<option>${escapeHtml(item)}</option>`).join('')}</optgroup>${boxOrigins.length ? `<optgroup label="Caixinhas">${boxOrigins.map((item) => `<option>${escapeHtml(item)}</option>`).join('')}</optgroup>` : ''}`;
   if (origins.includes(currentOrigin)) originSelect.value = currentOrigin;
   const boxSelect = document.querySelector('#box-select');
   if (boxSelect) {
@@ -516,6 +529,7 @@ function toggleCardField() {
   }
   const isCardBill = normalize(elements.form.elements.categoria.value) === 'cartao de credito';
   field.hidden = !isCardBill;
+  document.querySelector('#date-label').textContent = isCardBill ? 'Vencimento' : 'Data';
   elements.form.elements.cartao.required = isCardBill;
   if (!isCardBill) elements.form.elements.cartao.value = '';
 }
