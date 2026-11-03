@@ -409,7 +409,7 @@ test('divide o mês em ciclos entre receitas e sinaliza o ciclo que fica no nega
   ];
   const result = calculateCashCycles(transactions, '2026-11', { today: '2026-11-03', anchorBalance: 500 });
   assert.equal(result.cycles.length, 2);
-  assert.equal(result.cycles[0].start, '2026-11-03');
+  assert.equal(result.cycles[0].start, '2026-11-01');
   assert.equal(result.cycles[0].end, '2026-11-09');
   assert.equal(result.cycles[0].menorSaldo, 200);
   assert.equal(result.cycles[0].status, 'ok');

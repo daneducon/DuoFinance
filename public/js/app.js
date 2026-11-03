@@ -655,7 +655,7 @@ function calculateSummary() {
     if (item.tipo === 'Estorno') { result.despesas -= item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) - item.valor; }
     if (item.status === 'Pendente') {
       result.pendente += item.valor;
-      if (['Receita', 'Resgate'].includes(item.tipo)) result.aReceber += item.valor;
+      if (item.tipo === 'Receita') result.aReceber += item.valor;
       if (item.tipo === 'Despesa' && item.fonte !== 'pluggy') result.aPagar += item.valor;
     }
     result.saldoPrevisto += effect;
@@ -673,42 +673,55 @@ function renderCycles(data) {
     container.innerHTML = '';
     return;
   }
-  const first = cycles[0];
-  const headline = first.menorSaldo >= 0
-    ? `Você pode gastar <strong>${money(first.menorSaldo)}</strong> livres até ${shortDate(first.end)}.`
-    : `Até ${shortDate(first.end)} faltam <strong class="negative">${money(first.falta)}</strong>. Antecipe ou adie compromissos.`;
-  container.innerHTML = `<p class="cycle-headline">${headline}</p><div class="cycle-grid">${cycles.map(cycleCard).join('')}</div>`;
+  const today = todayText();
+  const current = cycles.find((cycle) => cycle.start <= today && today <= cycle.end) || cycles[0];
+  const livre = Number(data.safeToSpend ?? current.livre ?? 0);
+  const headline = current.status === 'ok'
+    ? `Você pode gastar <strong>${money(livre)}</strong> livres até ${shortDate(current.end)}.`
+    : `Até ${shortDate(current.end)} faltam <strong class="negative">${money(current.falta)}</strong>. Antecipe ou adie compromissos.`;
+  container.innerHTML = `<p class="cycle-headline">${headline}</p><div class="cycle-grid">${cycles.map((cycle) => cycleCard(cycle, today)).join('')}</div>`;
 }
 
-function cycleCard(cycle) {
+function cycleCard(cycle, today) {
   const pill = cycle.status === 'falta' ? `Faltam ${money(cycle.falta)}` : `Folga de ${money(cycle.menorSaldo)}`;
-  return `<article class="cycle-card ${cycle.status}"><h3>${shortDate(cycle.start)} a ${shortDate(cycle.end)}</h3><div class="cycle-row"><span>Disponível no início</span><strong>${money(cycle.saldoInicio)}</strong></div><div class="cycle-row"><span>Compromissos</span><strong>${money(cycle.compromissos)}</strong></div><div class="cycle-row"><span>Entradas</span><strong>${money(cycle.entradas)}</strong></div><div class="cycle-row"><span>Menor saldo</span><strong class="${cycle.menorSaldo < 0 ? 'negative' : ''}">${money(cycle.menorSaldo)}</strong></div><span class="cycle-pill ${cycle.status}">${pill}</span></article>`;
+  const starter = cycle.inicio ? `${escapeHtml(cycle.inicio.descricao)} · ${money(cycle.inicio.valor)}` : 'Início do mês';
+  const timing = cycle.end < today ? 'passado' : cycle.start <= today ? 'atual' : 'futuro';
+  return `<article class="cycle-card ${cycle.status} ${timing}"><p class="cycle-start">${starter}</p><h3>${shortDate(cycle.start)} a ${shortDate(cycle.end)}</h3><div class="cycle-row"><span>Saldo no início</span><strong>${money(cycle.saldoInicio)}</strong></div><div class="cycle-row"><span>Compromissos</span><strong>${money(cycle.compromissos)}</strong></div><div class="cycle-row"><span>Entradas</span><strong>${money(cycle.entradas)}</strong></div><div class="cycle-row"><span>Menor saldo</span><strong class="${cycle.menorSaldo < 0 ? 'negative' : ''}">${money(cycle.menorSaldo)}</strong></div><span class="cycle-pill ${cycle.status}">${pill}</span></article>`;
+}
+
+function todayText() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
 }
 
 function calculateLocalCashCycles() {
-  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const today = todayText();
   const month = elements.month.value;
   if (month < today.slice(0, 7)) return { pastMonth: true, cycles: [], safeToSpend: null };
   const anchor = state.summary?.saldoAtual || 0;
   const pending = state.transactions.filter((item) => item.status === 'Pendente' && item.data).map((item) => ({ date: item.data < today ? today : item.data, effect: accountEffect(item) })).filter((item) => item.effect !== 0);
   const balanceOn = (date) => anchor + pending.filter((item) => item.date <= date).reduce((sum, item) => sum + item.effect, 0);
-  const firstDay = month === today.slice(0, 7) ? today : `${month}-01`;
   const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0).getDate();
+  const monthStart = `${month}-01`;
   const monthEnd = `${month}-${String(days).padStart(2, '0')}`;
-  const boundaries = [...new Set([firstDay, ...state.transactions.filter((item) => item.tipo === 'Receita' && item.data >= firstDay).map((item) => item.data)])].sort();
+  const receipts = state.transactions.filter((item) => item.tipo === 'Receita' && item.data && item.data >= monthStart).sort((a, b) => a.data.localeCompare(b.data));
+  const boundaries = [...new Set([monthStart, ...receipts.map((item) => item.data)])].sort();
   const inMonth = boundaries.filter((date) => date <= monthEnd);
-  const nextAfter = boundaries.find((date) => date > monthEnd);
+  const nextAfter = receipts.find((item) => item.data > monthEnd)?.data;
   const cycles = inMonth.map((start, index) => {
     const nextStart = inMonth[index + 1] || nextAfter;
     const end = nextStart ? shiftDateLocal(nextStart, -1) : monthEnd;
     const dates = [];
     for (let date = start; date <= end; date = shiftDateLocal(date, 1)) dates.push(date);
     const menorSaldo = Math.min(...dates.map(balanceOn));
+    const future = dates.filter((date) => date >= today);
+    const livre = future.length ? Math.min(...future.map(balanceOn)) : menorSaldo;
     const compromissos = pending.filter((item) => item.date >= start && item.date <= end && item.effect < 0).reduce((sum, item) => sum - item.effect, 0);
     const entradas = pending.filter((item) => item.date > start && item.date <= end && item.effect > 0).reduce((sum, item) => sum + item.effect, 0);
-    return { start, end, saldoInicio: balanceOn(start), entradas, compromissos, saldoFim: balanceOn(end), menorSaldo, status: menorSaldo < 0 ? 'falta' : 'ok', falta: Math.max(0, -menorSaldo) };
+    const starter = receipts.find((item) => item.data === start);
+    return { start, end, inicio: starter ? { descricao: starter.descricao, valor: starter.valor, status: starter.status } : null, saldoInicio: balanceOn(start), entradas, compromissos, saldoFim: balanceOn(end), menorSaldo, livre, status: menorSaldo < 0 ? 'falta' : 'ok', falta: Math.max(0, -menorSaldo) };
   });
-  return { pastMonth: false, cycles, safeToSpend: cycles[0] ? Math.max(0, cycles[0].menorSaldo) : null };
+  const current = cycles.find((cycle) => cycle.start <= today && today <= cycle.end);
+  return { pastMonth: false, cycles, safeToSpend: current ? Math.max(0, current.livre) : null };
 }
 
 function shiftDateLocal(date, days) {
