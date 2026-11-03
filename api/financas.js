@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -24,12 +24,13 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [manualTransactions, pluggyBills, configuration, mentor] = await Promise.all([
+  const [allManualTransactions, pluggyBills, configuration, mentor] = await Promise.all([
     sheets.listAllTransactions(),
     sheets.listPluggyBills(),
     sheets.getConfiguration(),
     sheets.getMentorInsights(month)
   ]);
+  const manualTransactions = withoutSupersededCardBills(allManualTransactions, pluggyBills);
   const accountingTransactions = [...manualTransactions, ...pluggyBills];
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);

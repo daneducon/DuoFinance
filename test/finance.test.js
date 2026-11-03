@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible } = require('../lib/finance');
+const { summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
 const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 const { buildMonthlyCardBudget, budgetRisk, spendingFlag, isManualCardBill } = require('../lib/budget');
 
@@ -338,4 +338,34 @@ test('protege essenciais e restaurantes mas permite corte de delivery', () => {
   assert.equal(spendingFlag({ categoria: 'Eating out', descricao: 'Restaurante local' }), 'Intocável');
   assert.equal(spendingFlag({ categoria: 'Food and drinks', descricao: 'iFood restaurante' }), 'Otimizável');
   assert.equal(spendingFlag({ categoria: 'Food delivery', descricao: 'Delivery' }), 'Otimizável');
+});
+
+test('não soma fatura manual de cartão conectado que já vem da Pluggy', () => {
+  const pluggyBills = [
+    { mesRef: '2026-06', valor: 1299.62, estimada: false },
+    { mesRef: '2026-06', valor: 2139.8, estimada: false },
+    { mesRef: '2026-11', valor: 783.2, estimada: true }
+  ];
+  const manual = [
+    { tipo: 'Despesa', valor: 1299.62, mesRef: '2026-06', categoria: 'Cartão de Crédito', cartao: '' },
+    { tipo: 'Despesa', valor: 2139.8, mesRef: '2026-06', categoria: 'Cartão de Crédito', cartao: '' },
+    { tipo: 'Despesa', valor: 1802.14, mesRef: '2026-01', categoria: 'Cartão de Crédito', cartao: '' },
+    { tipo: 'Despesa', valor: 889, mesRef: '2026-01', categoria: 'Cartão de Crédito', cartao: 'Leroy' },
+    { tipo: 'Despesa', valor: 783.2, mesRef: '2026-11', categoria: 'Cartão de Crédito', cartao: '' }
+  ];
+  const kept = withoutSupersededCardBills(manual, pluggyBills);
+  assert.deepEqual(kept.map((item) => item.valor), [1802.14, 889, 783.2]);
+});
+
+test('não projeta parcela futura que a Pluggy já devolve como transação', () => {
+  const metadata = { installmentNumber: 4, totalInstallments: 5, purchaseDate: '2026-08-01', totalAmount: 417.7 };
+  const purchase = (date, installment) => ({
+    id: `t-${date}`, type: 'DEBIT', amount: 83.54, date, description: 'Mercadolivre', operationType: '',
+    creditCardMetadata: { ...metadata, installmentNumber: installment }
+  });
+  const account = { id: 'card', itemId: 'item', name: 'Cartao', number: '2440', creditData: {} };
+  const transactions = [purchase('2026-10-09', 4), purchase('2026-11-09', 5)];
+  const bills = mapBills([], account, transactions);
+  const november = bills.find((bill) => bill.dueDate.startsWith('2026-11'));
+  assert.equal(november.total, 83.54);
 });
