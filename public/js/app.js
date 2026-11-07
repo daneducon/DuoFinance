@@ -23,7 +23,7 @@ const tabs = { general: 'Visão geral', transactions: 'Contas', analysis: 'Anál
 elements.month.value = new Date().toISOString().slice(0, 7);
 updateMonthLabel();
 document.querySelector('#user-email').textContent = currentSession?.user?.email || 'Conta compartilhada';
-document.querySelector('#greeting').textContent = greeting();
+renderGreeting();
 
 document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => openForm()));
 document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => elements.dialog.close()));
@@ -71,7 +71,7 @@ window.addEventListener('online', async () => {
   if (count) { notify(`${count} alteração(ões) sincronizada(s).`); load(); }
 });
 window.addEventListener('offline', updateConnectivity);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshSyncMentor(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { refreshSyncMentor(); renderGreeting(); } });
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('message', (event) => {
     if (event.data?.type === 'FINANCES_SYNCED') { notify('Alterações offline sincronizadas.'); load(); }
@@ -955,7 +955,22 @@ function fullMonthLabel(value) { return new Intl.DateTimeFormat('pt-BR', { month
 function responsibleName(value) { return ({ Ele: 'Danilo', Ela: 'Talyta', Nós: 'Casal' })[value] || value; }
 function normalize(value) { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
 function sameLabel(left, right) { return normalize(left) === normalize(right); }
-function greeting() { const hour = new Date().getHours(); return hour < 12 ? 'BOM DIA, DUPLA' : hour < 18 ? 'BOA TARDE, DUPLA' : 'BOA NOITE, DUPLA'; }
+// Saudação com o primeiro nome e a foto da conta Google usada no login.
+function renderGreeting() {
+  const user = currentSession?.user || {};
+  const firstName = currentSession?.demo ? 'dupla' : String(user.name || '').trim().split(/\s+/)[0];
+  const hour = new Date().getHours();
+  const period = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+  document.querySelector('#greeting').textContent = firstName ? `${period}, ${firstName}` : period;
+  const avatar = document.querySelector('#user-avatar');
+  const initial = (firstName || 'D').charAt(0).toUpperCase();
+  if (!user.picture || currentSession?.demo) {
+    avatar.textContent = initial;
+    return;
+  }
+  avatar.innerHTML = `<img src="${escapeHtml(user.picture)}" alt="" referrerpolicy="no-referrer">`;
+  avatar.querySelector('img').addEventListener('error', () => { avatar.textContent = initial; }, { once: true });
+}
 function balanceMessage(balance) {
   if (balance > 0) return 'O mês está no verde. Vocês têm espaço para avançar em uma meta.';
   if (balance < 0) return 'O previsto pede atenção. Um pequeno ajuste agora pode reequilibrar o mês.';
