@@ -2,7 +2,7 @@
   "name": "duofinance",
   "version": "1.0.0",
   "private": true,
-  "description": "PWA de gestao financeira para casais",
+  "description": "Nosso dinheiro: gestão financeira para casais",
   "scripts": {
     "dev": "npx vercel@latest dev",
     "test": "node --test",
