@@ -351,3 +351,24 @@ dialog.sheet[open]{animation:sheet-in .2s ease}
 .check-value.income-value{color:#7fcfa0}
 .check-value.expense-value{color:#e0857a}
 .check-value.deposit{color:#8fb8e6}
+
+/* Login: visual alinhado às telas do app, pensado para o celular */
+.login-page{min-height:100vh;background:#07110e}
+.login-layout{display:flex;flex-direction:column;justify-content:center;gap:40px;min-height:100vh;max-width:440px;margin:0 auto;padding:40px 22px}
+.login-story{display:grid;gap:28px}
+.login-story .brand{font-size:19px;letter-spacing:-.01em}
+.story-copy h1{margin:0;font:800 34px/1.12 var(--font-display);letter-spacing:-.035em}
+.story-copy p{margin:14px 0 0;color:var(--muted);font-size:15px;line-height:1.6}
+.login-panel{padding:28px 24px;border:1px solid var(--line);border-radius:24px;background:var(--surface)}
+.login-panel .eyebrow{margin:0 0 10px}
+.login-panel h2{margin:0;font:700 24px var(--font-display);letter-spacing:-.02em}
+.login-hint{margin:10px 0 0;color:var(--muted);font-size:14px;line-height:1.5}
+.google-slot{display:flex;justify-content:center;min-height:44px;margin-top:22px}
+.login-error{min-height:18px;margin:14px 0 0;color:#ff9b8d;font-size:13px}
+.privacy-note{display:block;margin-top:14px;color:var(--muted);font-size:11px;text-align:center}
+@media(min-width:900px){.login-layout{flex-direction:row;align-items:center;max-width:1040px;gap:80px;padding:40px}.login-story{flex:1}.login-panel{width:380px;flex:0 0 380px}.story-copy h1{font-size:44px}}
+.login-story{padding:0;border:0;background:none;box-shadow:none;min-height:0;overflow:visible}
+.login-story .brand{display:inline-flex;align-items:center;gap:12px;color:var(--text);text-decoration:none}
+.login-story .brand-mark{display:grid;place-items:center;width:38px;height:38px;border-radius:12px;background:var(--green);color:#052015;font:800 19px var(--font-display)}
+.login-panel .eyebrow{text-align:left}
+.login-panel{text-align:left}
