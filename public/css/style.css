@@ -345,3 +345,6 @@ dialog.sheet[open]{animation:sheet-in .2s ease}
 .action-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .sheet-list-tall{max-height:55vh}
 .box-item .box-save{flex:0 0 auto;width:auto;min-width:0;margin:0;padding:9px 14px;border-radius:20px;white-space:nowrap;font-size:12px;line-height:1.2}
+.check-main{justify-content:flex-start;gap:12px}
+.check-text{flex:1 1 auto}
+.check-value{flex:0 0 auto;margin-left:auto;min-width:112px;text-align:right}
