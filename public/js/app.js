@@ -35,6 +35,8 @@ document.querySelector('#sync-pluggy-button').addEventListener('click', synchron
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#connected-card-grid').addEventListener('change', changeCardResponsible);
 document.querySelector('#upcoming-list').addEventListener('click', handleTransactionAction);
+document.querySelector('#selected-card-detail').addEventListener('click', handleCardDetail);
+document.querySelector('#selected-card-detail').addEventListener('change', changeCardResponsible);
 document.querySelector('#fab-button').addEventListener('click', toggleFab);
 document.querySelector('#fab-menu').addEventListener('click', handleFabAction);
 document.addEventListener('click', (event) => { if (!event.target.closest('#fab')) closeFab(); });
@@ -122,6 +124,7 @@ function render() {
   renderTrend('#income-trend', summary.receitas, state.comparison?.receitas, 'up-good');
   renderTrend('#expense-trend', summary.despesas, state.comparison?.despesas, 'up-bad');
   renderUpcoming();
+  renderHomeHero(summary);
   document.querySelector('#balance-note').textContent = balanceMessage(summary.saldoPrevisto);
   renderCashFlow();
   renderCategoryChart(summary);
@@ -210,7 +213,8 @@ function renderBoxes(boxes) {
   const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div>${movementsHtml(box)}${projectionHtml(box.projection)}</article>`;
   elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
   const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
-  document.querySelector('#favorite-box-list').innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
+  const favoriteList = document.querySelector('#favorite-box-list');
+  if (favoriteList) favoriteList.innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
 }
 
 function handleBoxAction(event) {
@@ -295,36 +299,59 @@ function renderCards() {
   const data = state.cardsData || {};
   const cards = data.cards || [];
   const bills = data.bills || [];
-  const nextBills = data.nextBills || [];
   const budget = data.budget || {};
   const monthLabel = fullMonthLabel(data.spendingMonth || elements.month.value);
-  const nextLabel = fullMonthLabel(data.paymentMonth || elements.month.value);
+  if (!cards.some((card) => card.id === state.selectedCardId)) state.selectedCardId = cards[0]?.id || 'all';
   document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
-  document.querySelector('#month-bill-label').textContent = `Vencimentos em ${monthLabel}`;
-  const noCards = !cards.length;
-  document.querySelector('#month-bill-total').textContent = noCards ? '—' : money(budget.consumption || 0);
-  document.querySelector('#card-available-total').textContent = noCards ? '—' : money(data.availableLimit || 0);
-  document.querySelector('#credit-limit-total').textContent = money(budget.ceiling || 0);
-  const remaining = document.querySelector('#credit-limit-available');
-  remaining.textContent = noCards ? '—' : Number(budget.remaining) < 0 ? `Passou ${money(-budget.remaining)}` : `Faltam ${money(budget.remaining || 0)}`;
-  remaining.classList.toggle('budget-negative', Number(budget.remaining) < 0);
+  document.querySelector('#card-available-total').textContent = cards.length ? money(data.availableLimit || 0) : '—';
   const status = document.querySelector('#pluggy-status');
-  status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s).` : data.hasConfiguredItems ? 'Clique em Sincronizar dados para fazer a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel para importar seus dados.');
+  status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s)` : data.hasConfiguredItems ? 'Toque em sincronizar para a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel.');
   status.classList.toggle('error-copy', Boolean(data.error));
   document.querySelector('#sync-pluggy-button').hidden = Boolean(currentSession?.demo);
   renderCeiling(data, budget, monthLabel);
-  const grid = document.querySelector('#connected-card-grid');
-  grid.innerHTML = cards.length ? cards.map((card, index) => {
-    const cardBills = bills.filter((bill) => bill.accountId === card.id);
-    const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
-    const billStatus = cardBills.map((bill) => (bill.estimada ? 'Estimativa' : bill.status)).join(' · ');
-    const nextBill = nextBills.find((bill) => bill.accountId === card.id && bill.valor > 0);
+  document.querySelector('#connected-card-grid').innerHTML = cards.length ? cards.map((card, index) => {
+    const billTotal = bills.filter((bill) => bill.accountId === card.id).reduce((sum, bill) => sum + bill.valor, 0);
     const active = state.selectedCardId === card.id;
-    const updated = card.updatedAt ? fullDate(card.updatedAt.slice(0, 10)) : '—';
-    const nextText = nextBill ? `${money(nextBill.valor)} · ${nextBill.estimada ? 'estimativa' : 'oficial'}` : 'sem previsão';
-    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><div class="card-face"><div class="card-face-top"><span class="card-issuer">${escapeHtml(card.institution)}</span>${brandMark(card.brand)}</div><span class="card-chip" aria-hidden="true"></span><span class="card-number">•••• •••• •••• ${escapeHtml(String(card.number).slice(-4))}</span><div class="card-face-bottom"><strong>${escapeHtml(card.name)}</strong></div></div><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${monthLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${escapeHtml(billStatus)}</small><span class="card-next">Próxima (${nextLabel}): ${nextText}</span></div><div class="card-limit"><span>Disponível ${money(card.availableLimit || 0)}</span><span>Usado ${money(card.usedLimit || 0)}</span></div><span class="card-available">Limite total ${money(card.creditLimit || 0)}<br>Atualizado em ${updated}</span><button type="button" class="card-history-button" data-bill-history="${escapeHtml(card.id)}">Histórico de faturas</button></article>`;
-  }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
+    return `<button type="button" class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}" aria-pressed="${active}"><span class="card-face-top"><span class="card-issuer">${escapeHtml(card.institution)}</span>${brandMark(card.brand)}</span><span class="card-chip" aria-hidden="true"></span><span class="card-number">•••• ${escapeHtml(String(card.number).slice(-4))}</span><span class="card-face-bottom"><span class="card-holder">${escapeHtml(card.name)}</span><span class="card-face-bill">${money(billTotal)}</span></span></button>`;
+  }).join('') : '<div class="cards-empty"><p>Nenhum cartão conectado.</p></div>';
+  renderSelectedCard(data, monthLabel);
   renderCardTransactions();
+}
+
+function renderSelectedCard(data, monthLabel) {
+  const container = document.querySelector('#selected-card-detail');
+  const card = (data.cards || []).find((item) => item.id === state.selectedCardId);
+  if (!card) {
+    container.innerHTML = '';
+    return;
+  }
+  const cardBills = (data.bills || []).filter((bill) => bill.accountId === card.id);
+  const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
+  const dueDate = cardBills[0]?.data ? ` · vence ${shortDate(cardBills[0].data)}` : '';
+  const billStatus = cardBills.length ? `${cardBills.map((bill) => (bill.estimada ? 'Estimativa' : bill.status)).join(' · ')}${dueDate}` : 'Sem fatura neste mês';
+  const nextBill = (data.nextBills || []).find((bill) => bill.accountId === card.id && bill.valor > 0);
+  const nextLabel = fullMonthLabel(data.paymentMonth || elements.month.value);
+  const used = card.creditLimit > 0 ? Math.min(100, Math.max(0, (card.usedLimit || 0) / card.creditLimit * 100)) : 0;
+  const owners = [['Ele', 'Danilo'], ['Ela', 'Talyta'], ['Nós', 'Casal']].map(([value, label]) => `<option value="${value}" ${card.responsavel === value ? 'selected' : ''}>${label}</option>`).join('');
+  container.innerHTML = `<article class="card-detail">
+    <p class="card-detail-label">Fatura de ${monthLabel}</p>
+    <strong class="card-detail-value">${cardBills.length ? money(billTotal) : '—'}</strong>
+    <p class="card-detail-status">${escapeHtml(billStatus)}</p>
+    <div class="limit-bar" role="progressbar" aria-label="Limite usado" aria-valuenow="${Math.round(used)}" aria-valuemin="0" aria-valuemax="100"><span style="width:${used}%"></span></div>
+    <div class="limit-row"><span>Usado ${money(card.usedLimit || 0)}</span><span>Disponível ${money(card.availableLimit || 0)}</span></div>
+    <p class="card-detail-next">Próxima (${nextLabel}): ${nextBill ? `${money(nextBill.valor)} · ${nextBill.estimada ? 'estimativa' : 'oficial'}` : 'sem previsão'}</p>
+    <div class="card-actions">
+      <button type="button" data-bill-history="${escapeHtml(card.id)}"><span class="action-icon" aria-hidden="true">▥</span>Histórico</button>
+      <button type="button" data-show-purchases><span class="action-icon" aria-hidden="true">≡</span>Compras</button>
+      <label><span class="action-icon" aria-hidden="true">◐</span><select data-card-owner="${escapeHtml(card.id)}" aria-label="Responsável pelo cartão">${owners}</select></label>
+    </div>
+  </article>`;
+}
+
+function handleCardDetail(event) {
+  const historyId = event.target.closest('[data-bill-history]')?.dataset.billHistory;
+  if (historyId) return openBillHistory(historyId);
+  if (event.target.closest('[data-show-purchases]')) document.querySelector('.card-expenses-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function brandMark(brand) {
@@ -352,7 +379,7 @@ function renderUpcoming() {
   const items = state.transactions
     .filter((item) => item.status === 'Pendente' && item.data && ['Despesa', 'Pagamento Fatura', 'Receita'].includes(item.tipo) && item.fonte !== 'pluggy' && !['Aberta', 'Projetada'].includes(item.situacao))
     .sort((a, b) => a.data.localeCompare(b.data))
-    .slice(0, 5);
+    .slice(0, 3);
   document.querySelector('#upcoming-list').innerHTML = items.length ? items.map((item) => {
     const income = item.tipo === 'Receita';
     const overdue = item.data < today;
@@ -450,15 +477,43 @@ function renderCeiling(data, budget, monthLabel) {
     ...(data.bills || []).map((bill) => ({ label: bill.descricao, detail: `vence ${fullDate(bill.data)} · ${bill.estimada ? 'estimativa' : bill.status}`, value: bill.valor })),
     ...(data.manualBills || []).map((item) => ({ label: `${item.cartao} (manual)`, detail: `vence ${fullDate(item.data)} · ${item.status}`, value: item.valor }))
   ];
+  const panel = document.querySelector('#ceiling-panel');
   if (!lines.length && !budget.consumption) {
-    document.querySelector('#ceiling-panel').innerHTML = `<article class="panel ceiling-panel"><div class="ceiling-head"><div><p class="eyebrow">TETO PELO VENCIMENTO · ${monthLabel.toUpperCase()}</p><h2>Sem dados de cartão</h2></div></div><p class="muted-copy">Sincronize os dados bancários para ver o teto deste mês.</p></article>`;
+    panel.innerHTML = `<div class="ceiling-compact"><div class="ceiling-compact-head"><span>Teto do mês</span><strong>Sem dados</strong></div><p>Sincronize os bancos para ver os vencimentos de ${monthLabel}.</p></div>`;
     return;
   }
   const remaining = Number(budget.remaining || 0);
   const over = remaining < 0;
-  const summary = over ? `Passou ${money(-remaining)}` : `Faltam ${money(remaining)}`;
-  const rows = lines.length ? lines.map((line) => `<div class="ceiling-line"><div><strong>${escapeHtml(line.label)}</strong><span>${escapeHtml(line.detail)}</span></div><strong>${money(line.value)}</strong></div>`).join('') : '<p class="muted-copy">Nenhum vencimento neste mês.</p>';
-  document.querySelector('#ceiling-panel').innerHTML = `<article class="panel ceiling-panel"><div class="ceiling-head"><div><p class="eyebrow">TETO PELO VENCIMENTO · ${monthLabel.toUpperCase()}</p><h2>${money(budget.consumption || 0)} <span>de ${money(budget.ceiling || 0)}</span></h2></div><span class="ceiling-status ${over ? 'over' : 'ok'}">${summary}</span></div><div class="ceiling-lines">${rows}</div></article>`;
+  const used = budget.ceiling > 0 ? Math.min(100, (budget.consumption || 0) / budget.ceiling * 100) : 0;
+  const rows = lines.map((line) => `<div class="ceiling-line"><div><strong>${escapeHtml(line.label)}</strong><span>${escapeHtml(line.detail)}</span></div><strong>${money(line.value)}</strong></div>`).join('');
+  panel.innerHTML = `<div class="ceiling-compact">
+    <div class="ceiling-compact-head"><span>Teto do mês</span><strong class="${over ? 'negative' : 'positive'}">${over ? `Passou ${money(-remaining)}` : `Faltam ${money(remaining)}`}</strong></div>
+    <div class="ceiling-bar ${over ? 'over' : ''}"><span style="width:${used}%"></span></div>
+    <p>${money(budget.consumption || 0)} de ${money(budget.ceiling || 0)} em vencimentos de ${monthLabel}</p>
+    <details class="ceiling-details"><summary>Ver vencimentos</summary><div class="ceiling-lines">${rows}</div></details>
+  </div>`;
+}
+
+function renderHomeHero(summary) {
+  const cycles = state.cashCycles || calculateLocalCashCycles();
+  const today = todayText();
+  const current = (cycles.cycles || []).find((cycle) => cycle.start <= today && today <= cycle.end);
+  const free = document.querySelector('#home-free');
+  if (current) {
+    free.hidden = false;
+    free.className = `home-free ${current.status === 'falta' ? 'negative' : ''}`;
+    free.innerHTML = current.status === 'falta'
+      ? `Faltam <strong>${money(current.falta)}</strong> até ${shortDate(current.end)}`
+      : `<strong>${money(Math.max(0, cycles.safeToSpend ?? current.livre))}</strong> livres até ${shortDate(current.end)}`;
+  } else {
+    free.hidden = true;
+  }
+  const committed = summary.receitas > 0 ? summary.despesas / summary.receitas * 100 : 0;
+  const progress = document.querySelector('#home-progress');
+  progress.hidden = !(summary.receitas > 0);
+  progress.querySelector('span').style.width = `${Math.min(100, committed)}%`;
+  progress.classList.toggle('over', committed > 100);
+  document.querySelector('#home-progress-label').textContent = summary.receitas > 0 ? `${Math.round(committed)}% das receitas do mês já comprometidas` : '';
 }
 
 function renderCardTransactions() {
@@ -476,7 +531,7 @@ function selectCard(event) {
   if (historyId) return openBillHistory(historyId);
   const id = event.target.closest('[data-card-id]')?.dataset.cardId;
   if (!id) return;
-  state.selectedCardId = state.selectedCardId === id ? 'all' : id;
+  state.selectedCardId = id;
   renderCards();
 }
 
