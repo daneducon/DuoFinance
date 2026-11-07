@@ -348,3 +348,6 @@ dialog.sheet[open]{animation:sheet-in .2s ease}
 .check-main{justify-content:flex-start;gap:12px}
 .check-text{flex:1 1 auto}
 .check-value{flex:0 0 auto;margin-left:auto;min-width:112px;text-align:right}
+.check-value.income-value{color:#7fcfa0}
+.check-value.expense-value{color:#e0857a}
+.check-value.deposit{color:#8fb8e6}
