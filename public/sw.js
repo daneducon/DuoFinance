@@ -1,5 +1,5 @@
-const CACHE = 'duofinance-v32';
-const ASSETS = ['/', '/login', '/css/style.css?v=32', '/js/app.js?v=32', '/js/login.js?v=19', '/js/auth.js', '/js/api.js', '/js/demo.js', '/js/storage.js', '/assets/icon.svg', '/manifest.json'];
+const CACHE = 'duofinance-v36';
+const ASSETS = ['/', '/login', '/css/style.css?v=36', '/js/app.js?v=36', '/js/login.js?v=19', '/js/auth.js', '/js/api.js', '/js/demo.js', '/js/storage.js', '/assets/icon.svg', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -34,6 +34,24 @@ function cacheCopy(request, response) {
   const copy = response.clone();
   caches.open(CACHE).then((cache) => cache.put(request, copy));
 }
+
+// Lembretes de vencimento enviados pelo cron diário.
+self.addEventListener('push', (event) => {
+  const data = event.data ? event.data.json() : {};
+  event.waitUntil(self.registration.showNotification(data.title || 'DuoFinance', {
+    body: data.body || '', icon: '/assets/icon.svg', badge: '/assets/icon.svg', data: { url: data.url || '/' }
+  }));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || '/';
+  event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    const open = clients.find((client) => client.url.startsWith(self.location.origin));
+    if (open) return open.focus().then(() => open.navigate(url));
+    return self.clients.openWindow(url);
+  }));
+});
 
 self.addEventListener('sync', (event) => {
   if (event.tag === 'sync-finances') event.waitUntil(syncFinances());

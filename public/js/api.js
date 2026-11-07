@@ -30,7 +30,7 @@ function demoSummary(transactions, boxes, boxTransactions = transactions) {
     }
     if (item.status === 'Pendente') {
       result.pendente += item.valor;
-      if (['Receita', 'Resgate'].includes(item.tipo)) result.aReceber += item.valor;
+      if (item.tipo === 'Receita') result.aReceber += item.valor;
       if (item.tipo === 'Despesa') result.aPagar += item.valor;
     }
     const checking = ['Conta Corrente', 'Cartão de Crédito'].includes(item.origem);
@@ -131,8 +131,43 @@ export async function getFinances(month) {
 }
 
 export async function getCards(month) {
-  if (session()?.demo) return { configured: false, items: [], cards: [], transactions: [], bills: [], bankBalance: 0 };
+  if (session()?.demo) return demoCards(month);
   return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}`);
+}
+
+function shiftMonthKey(month, amount) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + amount, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+// Cartões de exemplo para a demonstração mostrar a tela completa sem a Pluggy.
+function demoCards(month) {
+  const cards = [
+    { id: 'demo-card-1', itemId: 'demo', type: 'CREDIT', subtype: 'CREDIT_CARD', name: 'Ultravioleta', number: '2440', brand: 'MASTERCARD', institution: 'Banco Demo', creditLimit: 7650, availableLimit: 3120.4, usedLimit: 4529.6, responsavel: 'Ele', updatedAt: new Date().toISOString(), budget: {} },
+    { id: 'demo-card-2', itemId: 'demo', type: 'CREDIT', subtype: 'CREDIT_CARD', name: 'Platinum', number: '8708', brand: 'VISA', institution: 'Banco Exemplo', creditLimit: 1380, availableLimit: 993.94, usedLimit: 386.06, responsavel: 'Ela', updatedAt: new Date().toISOString(), budget: {} }
+  ];
+  const base = { 'demo-card-1': [2140, 9], 'demo-card-2': [262, 8] };
+  const billHistory = Object.fromEntries(cards.map((card) => {
+    const [value, day] = base[card.id];
+    return [card.id, Array.from({ length: 10 }, (_, index) => {
+      const mesRef = shiftMonthKey(month, index - 8);
+      return { mesRef, data: `${mesRef}-0${day}`, valor: Math.round(value * (1 + Math.sin(index * 1.3) * 0.28) * 100) / 100, status: index < 8 ? 'Pago' : 'Pendente', estimada: index === 9, ajustada: false };
+    })];
+  }));
+  const toBill = (card, bill) => ({ ...bill, id: `demo-bill:${card.id}:${bill.mesRef}`, accountId: card.id, descricao: `Fatura ${card.name} • ${card.number}`, tipo: 'Pagamento Fatura', fonte: 'pluggy-bill' });
+  const bills = cards.map((card) => toBill(card, billHistory[card.id][8]));
+  const nextBills = cards.map((card) => toBill(card, billHistory[card.id][9]));
+  const consumption = bills.reduce((sum, bill) => sum + bill.valor, 0);
+  return {
+    configured: true, hasConfiguredItems: true, items: [{ id: 'demo', institution: 'Demonstração' }], cards, transactions: [], bills, nextBills, manualBills: [], billHistory,
+    bankBalance: 1250, availableLimit: cards.reduce((sum, card) => sum + card.availableLimit, 0),
+    budget: { ceiling: 3500, consumption, remaining: 3500 - consumption, cards: [] }, spendingMonth: month, paymentMonth: shiftMonthKey(month, 1)
+  };
+}
+
+export async function subscribePush(subscription) {
+  return request('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription }) });
 }
 
 export async function syncPluggy(itemId) {
