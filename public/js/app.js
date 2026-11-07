@@ -523,6 +523,14 @@ function renderCards() {
   renderCardTransactions();
 }
 
+// Estado da fatura: pagas aparecem como pagas, mesmo quando o valor ainda é estimativa.
+function billLabel(bill) {
+  if (bill.status === 'Pago') return bill.estimada ? 'Paga (estimada)' : 'Paga';
+  if (bill.estimada) return 'Estimativa';
+  if (bill.ajustada) return 'Ajustada';
+  return bill.status || '';
+}
+
 function renderSelectedCard(data, monthLabel) {
   const container = document.querySelector('#selected-card-detail');
   const card = (data.cards || []).find((item) => item.id === state.selectedCardId);
@@ -533,7 +541,7 @@ function renderSelectedCard(data, monthLabel) {
   const cardBills = (data.bills || []).filter((bill) => bill.accountId === card.id);
   const billTotal = cardBills.reduce((sum, bill) => sum + bill.valor, 0);
   const dueDate = cardBills[0]?.data ? ` · vence ${shortDate(cardBills[0].data)}` : '';
-  const billStatus = cardBills.length ? `${cardBills.map((bill) => (bill.estimada ? 'Estimativa' : bill.status)).join(' · ')}${dueDate}` : 'Sem fatura neste mês';
+  const billStatus = cardBills.length ? `${cardBills.map((bill) => billLabel(bill)).join(' · ')}${dueDate}` : 'Sem fatura neste mês';
   const nextBill = (data.nextBills || []).find((bill) => bill.accountId === card.id && bill.valor > 0);
   const nextLabel = fullMonthLabel(data.paymentMonth || elements.month.value);
   const used = card.creditLimit > 0 ? Math.min(100, Math.max(0, (card.usedLimit || 0) / card.creditLimit * 100)) : 0;
@@ -634,8 +642,8 @@ function openBillHistory(id) {
   document.querySelector('#bill-history-stats').innerHTML = `<div><span>Média das faturas</span><strong>${money(average)}</strong></div><div><span>Maior fatura</span><strong>${highest ? `${money(highest.valor)} · ${monthLabel(highest.mesRef)}` : '—'}</strong></div><div><span>Faturas registradas</span><strong>${official.length}</strong></div>`;
   const maximum = Math.max(...history.map((bill) => bill.valor), 1);
   const chart = document.querySelector('#bill-history-chart');
-  chart.innerHTML = history.length ? `<div class="history-bars">${history.map((bill) => `<div class="history-bar ${bill.estimada ? 'estimated' : ''} ${bill.mesRef === elements.month.value ? 'current' : ''}" title="${monthLabel(bill.mesRef)}: ${money(bill.valor)}${bill.estimada ? ' (estimativa)' : ''}"><span class="history-value">${compactMoney(bill.valor)}</span><span class="history-track"><span class="history-fill" style="height:${Math.max(3, bill.valor / maximum * 100)}%"></span></span><small>${monthLabel(bill.mesRef)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Nenhuma fatura registrada para este cartão.</p>';
-  document.querySelector('#bill-history-list').innerHTML = [...history].reverse().slice(0, 12).map((bill) => `<div class="history-row"><span>${monthLabel(bill.mesRef)}</span><span class="history-status">${bill.estimada ? 'Estimativa' : bill.ajustada ? 'Ajustada' : escapeHtml(bill.status || '')}</span><strong>${money(bill.valor)}</strong></div>`).join('');
+  chart.innerHTML = history.length ? `<div class="history-bars">${history.map((bill) => `<div class="history-bar ${bill.estimada && bill.status !== 'Pago' ? 'estimated' : ''} ${bill.mesRef === elements.month.value ? 'current' : ''}" title="${monthLabel(bill.mesRef)}: ${money(bill.valor)}${bill.estimada ? ' (estimativa)' : ''}"><span class="history-value">${compactMoney(bill.valor)}</span><span class="history-track"><span class="history-fill" style="height:${Math.max(3, bill.valor / maximum * 100)}%"></span></span><small>${monthLabel(bill.mesRef)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Nenhuma fatura registrada para este cartão.</p>';
+  document.querySelector('#bill-history-list').innerHTML = [...history].reverse().slice(0, 12).map((bill) => `<div class="history-row"><span>${monthLabel(bill.mesRef)}</span><span class="history-status">${escapeHtml(billLabel(bill))}</span><strong>${money(bill.valor)}</strong></div>`).join('');
   document.querySelector('#bill-history-dialog').showModal();
   requestAnimationFrame(() => {
     const bars = chart.querySelector('.history-bars');
