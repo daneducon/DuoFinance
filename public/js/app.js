@@ -1,11 +1,11 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush } from './api.js';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory } from './api.js?v=42';
 
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
   summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {},
-  transactionFilter: 'all', search: '', analysisFilter: 'all', cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
+  transactionFilter: 'payable', search: '', analysisPeriod: 3, cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
   month: document.querySelector('#month-picker'), dialog: document.querySelector('#transaction-dialog'),
@@ -35,6 +35,8 @@ document.querySelector('#sync-pluggy-button').addEventListener('click', synchron
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#connected-card-grid').addEventListener('change', changeCardResponsible);
 document.querySelector('#upcoming-list').addEventListener('click', handleTransactionAction);
+document.querySelector('#action-sheet').addEventListener('click', handleSheetAction);
+document.querySelector('#search-toggle').addEventListener('click', toggleListSearch);
 document.querySelector('#selected-card-detail').addEventListener('click', handleCardDetail);
 document.querySelector('#selected-card-detail').addEventListener('change', changeCardResponsible);
 document.querySelector('#fab-button').addEventListener('click', toggleFab);
@@ -45,10 +47,10 @@ document.querySelector('#enable-reminders').addEventListener('click', enableRemi
 document.querySelector('#bill-history-dialog').addEventListener('click', (event) => {
   if (event.target === event.currentTarget || event.target.closest('[data-close-history]')) event.currentTarget.close();
 });
-document.querySelector('#fab-sync').hidden = Boolean(currentSession?.demo);
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
 document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
-document.querySelector('#analysis-filters').addEventListener('click', handleAnalysisFilter);
+document.querySelector('#analysis-period').addEventListener('click', handleAnalysisPeriod);
+document.querySelector('#category-chart').addEventListener('click', handleCategoryClick);
 elements.month.addEventListener('change', () => { updateMonthLabel(); load(); });
 document.querySelector('#previous-month').addEventListener('click', () => shiftMonth(-1));
 document.querySelector('#next-month').addEventListener('click', () => shiftMonth(1));
@@ -188,38 +190,162 @@ function renderCashFlow() {
 }
 
 function renderCategoryChart(summary) {
-  const categories = Object.entries(summary.categorias || {}).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 7);
-  const total = Object.values(summary.categorias || {}).reduce((sum, value) => sum + Math.max(0, value), 0) || 1;
+  const categories = Object.entries(summary.categorias || {}).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]);
+  const total = categories.reduce((sum, [, value]) => sum + value, 0) || 1;
   elements.chart.hidden = categories.length === 0;
   elements.chartEmpty.hidden = categories.length > 0;
-  elements.chart.innerHTML = categories.map(([name, value]) => `<div class="responsible-row"><div><strong title="${escapeHtml(name)}">${escapeHtml(name)}</strong><span>${Math.round(value / total * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / total * 100}%"></div></div></div>`).join('');
+  elements.chart.innerHTML = categories.map(([name, value]) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span><span class="bar-track"><span class="bar" style="width:${value / total * 100}%"></span></span></button>`).join('');
   const expenses = state.transactions.filter((item) => ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
-function renderBoxes(boxes) {
-  document.querySelector('#boxes-total').textContent = money(boxes.reduce((sum, box) => sum + box.saldo, 0));
-  const movementsHtml = (box) => {
-    const movements = state.transactions.filter((item) => item.origem === box.nome && item.fonte !== 'pluggy' && item.fonte !== 'pluggy-bill').slice(0, 3);
-    return `<div class="box-movements">${movements.length ? movements.map((item) => `<span>${fullDate(item.data)} · ${escapeHtml(item.tipo)} · ${money(item.valor)}</span>`).join('') : '<span>Sem movimentos neste mês</span>'}</div>`;
-  };
-  const projectionHtml = (projection) => {
-    if (!projection) return '';
-    if (projection.status === 'reached') return '<div class="box-projection">Meta atingida</div>';
-    if (projection.status === 'no-contribution') return '<div class="box-projection">Sem aporte recorrente no histórico</div>';
-    const plural = projection.monthsNeeded === 1 ? 'mês' : 'meses';
-    return `<div class="box-projection">Aporte médio ${money(projection.monthlyAverage)}/mês · meta em ${fullMonthLabel(projection.targetMonth)} de ${projection.targetMonth.slice(0, 4)} (${projection.monthsNeeded} ${plural})</div>`;
-  };
-  const card = (box) => `<article class="box-card"><div class="box-card-head"><span class="box-money-icon">${iconSvg('money')}</span><div class="box-card-actions"><small>${Math.round(box.progresso || 0)}%</small><button class="action-button edit" data-edit-box="${escapeHtml(box.nome)}" title="Editar caixinha" aria-label="Editar caixinha ${escapeHtml(box.nome)}">${iconSvg('edit')}</button></div></div><h3>${escapeHtml(box.nome)}</h3><p>${money(box.saldo)} guardados</p><div class="progress"><span style="width:${box.progresso || 0}%"></span></div><div class="box-meta"><span>Meta</span><strong>${money(box.meta)}</strong></div>${movementsHtml(box)}${projectionHtml(box.projection)}</article>`;
-  elements.boxes.innerHTML = boxes.length ? boxes.map(card).join('') : '<div class="empty-state panel"><p>Nenhuma caixinha configurada.</p></div>';
-  const favorites = boxes.filter((box) => box.favorito).slice(0, 4);
-  const favoriteList = document.querySelector('#favorite-box-list');
-  if (favoriteList) favoriteList.innerHTML = favorites.length ? favorites.map((box) => `<div class="mini-box"><div><strong>${escapeHtml(box.nome)}</strong><span>${Math.round(box.progresso)}%</span></div><div class="progress"><span style="width:${box.progresso}%"></span></div><small>${money(box.saldo)} de ${money(box.meta)}</small></div>`).join('') : '<p class="muted-copy">Nenhuma favorita configurada.</p>';
+function openCategorySheet(name) {
+  const items = state.transactions
+    .filter((item) => ['Despesa', 'Pagamento Fatura'].includes(item.tipo) && macroCategory(item.categoria) === name)
+    .sort((a, b) => b.valor - a.valor);
+  const total = items.reduce((sum, item) => sum + item.valor, 0);
+  const sheet = document.querySelector('#action-sheet');
+  sheet.dataset.id = '';
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(name)}</p><p class="sheet-sub">${money(total)} em ${items.length} ${items.length === 1 ? 'lançamento' : 'lançamentos'}</p><div class="sheet-list">${items.map((item) => `<div class="sheet-list-row"><div><strong>${escapeHtml(item.descricao)}</strong><span>${shortDate(item.data)} · ${escapeHtml(item.categoria || '')}</span></div><strong class="expense-value">${money(item.valor)}</strong></div>`).join('') || '<p class="muted-copy">Nenhum lançamento nesta categoria.</p>'}</div><div class="sheet-actions"><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
+  sheet.showModal();
+  sheet.querySelector('.cancel')?.focus();
 }
 
-function handleBoxAction(event) {
-  const name = event.target.closest('[data-edit-box]')?.dataset.editBox;
-  if (!name) return;
+function handleCategoryClick(event) {
+  const name = event.target.closest('[data-category]')?.dataset.category;
+  if (name) openCategorySheet(name);
+}
+
+function shortMonthName(month) {
+  return new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(new Date(`${month}-01T12:00:00`)).replace('.', '');
+}
+
+function renderAnalysis() {
+  const all = state.analysis.months || [];
+  const months = all.slice(-(state.analysisPeriod || 3));
+  const values = months.map((month) => month.total);
+  const current = all.at(-1)?.total || 0;
+  const previous = all.at(-2);
+  document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(elements.month.value)}`;
+  document.querySelector('#analysis-total').textContent = money(current);
+  const badge = document.querySelector('#analysis-trend');
+  if (previous?.total > 0) {
+    const change = Math.round((current - previous.total) / previous.total * 100);
+    badge.hidden = false;
+    badge.className = `trend-badge ${change <= 0 ? 'good' : 'bad'}`;
+    badge.textContent = `${change > 0 ? '+' : ''}${change}% vs ${fullMonthLabel(previous.month)}`;
+  } else {
+    badge.hidden = true;
+  }
+  document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
+  const maximum = Math.max(...values, 1);
+  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, index) => `<div class="period-bar ${index === months.length - 1 ? 'current' : ''}" title="${monthLabel(month.month)}: ${money(values[index])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[index] / maximum * 100)}%"></span></span><small>${shortMonthName(month.month)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
+  const filled = values.filter((value) => value > 0);
+  const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
+  const highestIndex = values.indexOf(Math.max(...values, 0));
+  document.querySelector('#trend-metrics').innerHTML = `<div><span>Média dos meses com gasto</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${highestIndex >= 0 && values[highestIndex] > 0 ? `${money(values[highestIndex])} · ${shortMonthName(months[highestIndex].month)}` : '—'}</strong></div>`;
+  const responsibleValues = all.at(-1)?.responsibles || {};
+  const colors = { Ele: 'var(--green)', Ela: '#e99d7d', Nós: '#5cb8cc' };
+  const responsibles = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])].map((name) => [name, Math.max(0, responsibleValues[name] || 0)]);
+  const responsibleTotal = responsibles.reduce((sum, [, value]) => sum + value, 0);
+  document.querySelector('#responsible-chart').innerHTML = responsibleTotal > 0
+    ? `<div class="split-bar">${responsibles.filter(([, value]) => value > 0).map(([name, value]) => `<span style="width:${value / responsibleTotal * 100}%;background:${colors[name] || '#8fa39a'}" title="${escapeHtml(responsibleName(name))}"></span>`).join('')}</div><div class="split-legend">${responsibles.map(([name, value]) => `<div><i style="background:${colors[name] || '#8fa39a'}"></i><span>${escapeHtml(responsibleName(name))}</span><strong>${money(value)}</strong><small>${Math.round(value / responsibleTotal * 100)}%</small></div>`).join('')}</div>`
+    : '<p class="muted-copy">Sem despesas no período.</p>';
+}
+
+function handleAnalysisPeriod(event) {
+  const button = event.target.closest('[data-period]');
+  if (!button) return;
+  state.analysisPeriod = Number(button.dataset.period);
+  renderAnalysis();
+}
+
+function boxRing(percent) {
+  const radius = 22;
+  const circumference = 2 * Math.PI * radius;
+  const offset = circumference * (1 - Math.min(100, Math.max(0, percent)) / 100);
+  return `<span class="box-ring" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${radius}" class="ring-track"/><circle cx="26" cy="26" r="${radius}" class="ring-fill" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"/></svg><b>${Math.round(percent)}%</b></span>`;
+}
+
+function projectionText(projection) {
+  if (!projection) return '';
+  if (projection.status === 'reached') return 'Meta atingida';
+  if (projection.status === 'no-contribution') return 'Sem aporte recorrente no histórico';
+  return `Meta em ${fullMonthLabel(projection.targetMonth)} de ${projection.targetMonth.slice(0, 4)} · ${money(projection.monthlyAverage)}/mês`;
+}
+
+function renderBoxes(boxes) {
+  const total = boxes.reduce((sum, box) => sum + box.saldo, 0);
+  const goals = boxes.reduce((sum, box) => sum + (box.meta || 0), 0);
+  document.querySelector('#boxes-total').textContent = money(total);
+  const subtitle = document.querySelector('#boxes-subtitle');
+  if (subtitle) subtitle.textContent = boxes.length ? `${boxes.length} ${boxes.length === 1 ? 'caixinha' : 'caixinhas'} · ${goals > 0 ? Math.round(total / goals * 100) : 0}% das metas` : '';
+  elements.boxes.innerHTML = boxes.length ? boxes.map((box) => {
+    const name = escapeHtml(box.nome);
+    return `<article class="box-item"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}">${boxRing(box.progresso || 0)}<span class="box-info"><strong>${name}</strong><span>${money(box.saldo)} de ${money(box.meta)}</span><small>${escapeHtml(projectionText(box.projection))}</small></span></button><button type="button" class="box-save" data-save-box="${name}">Guardar</button><button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></article>`;
+  }).join('') : '<div class="check-empty"><p>Nenhuma caixinha configurada.</p></div>';
+  const favoriteList = document.querySelector('#favorite-box-list');
+  if (favoriteList) favoriteList.innerHTML = '';
+}
+
+function monthsBetween(from, to) {
+  const [fromYear, fromMonth] = from.split('-').map(Number);
+  const [toYear, toMonth] = to.split('-').map(Number);
+  return (toYear * 12 + toMonth) - (fromYear * 12 + fromMonth);
+}
+
+function openBoxSheet(name) {
+  const box = (state.summary?.caixinhas || []).find((item) => item.nome === name);
+  if (!box) return;
+  const baseMonth = todayText().slice(0, 7);
+  const defaultTarget = box.projection?.status === 'projected' ? box.projection.targetMonth : shiftMonthKeyLocal(baseMonth, 12);
+  const sheet = document.querySelector('#action-sheet');
+  sheet.dataset.id = '';
+  sheet.dataset.box = box.nome;
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(box.nome)}</p><p class="sheet-sub">${money(box.saldo)} de ${money(box.meta)} · ${Math.round(box.progresso || 0)}%</p>
+    <p class="box-sheet-projection">${escapeHtml(projectionText(box.projection))}</p>
+    <div class="box-target"><label class="field"><span>Quero chegar à meta até</span><input type="month" id="box-target-month" min="${shiftMonthKeyLocal(baseMonth, 1)}" value="${defaultTarget}"></label><p id="box-target-result"></p></div>
+    <div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">+</span>Guardar</button><button type="button" data-sheet-action="box-history"><span aria-hidden="true">◷</span>Ver histórico</button><button type="button" data-sheet-action="box-edit"><span aria-hidden="true">✎</span>Editar meta</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
+  const input = sheet.querySelector('#box-target-month');
+  const result = sheet.querySelector('#box-target-result');
+  const update = () => {
+    const months = monthsBetween(baseMonth, input.value || baseMonth);
+    const missing = Math.max(0, box.meta - box.saldo);
+    if (!missing) result.textContent = 'Essa meta já foi atingida.';
+    else if (months <= 0) result.textContent = 'Escolha um mês depois do atual.';
+    else result.innerHTML = `Guardem <strong>${money(missing / months)}</strong> por mês durante ${months} ${months === 1 ? 'mês' : 'meses'}.`;
+  };
+  input.addEventListener('input', update);
+  update();
+  sheet.showModal();
+  sheet.querySelector('.cancel')?.focus();
+}
+
+function openBoxHistory(name) {
+  const box = (state.summary?.caixinhas || []).find((item) => item.nome === name);
+  if (!box) return;
+  // Sem o histórico do servidor (modo demonstração), mostra os movimentos do mês.
+  const history = box.history || state.transactions
+    .filter((item) => (item.origem === box.nome || item.categoria === box.nome) && ['Depósito', 'Depósito Caixinha', 'Resgate'].includes(item.tipo))
+    .sort((a, b) => b.data.localeCompare(a.data));
+  const isOut = (item) => ['Resgate', 'Despesa'].includes(item.tipo);
+  const saved = history.filter((item) => !isOut(item)).reduce((sum, item) => sum + item.valor, 0);
+  const withdrawn = history.filter(isOut).reduce((sum, item) => sum + item.valor, 0);
+  const sheet = document.querySelector('#action-sheet');
+  sheet.dataset.id = '';
+  sheet.dataset.box = box.nome;
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">Histórico · ${escapeHtml(box.nome)}</p><p class="sheet-sub">Guardado ${money(saved)}${withdrawn ? ` · Resgatado ${money(withdrawn)}` : ''}</p><div class="sheet-list sheet-list-tall">${history.map((item) => `<div class="sheet-list-row"><div><strong>${escapeHtml(item.descricao)}</strong><span>${fullDate(item.data)} · ${escapeHtml(item.tipo)}</span></div><strong class="${isOut(item) ? 'expense-value' : 'income-value'}">${isOut(item) ? '− ' : '+ '}${money(item.valor)}</strong></div>`).join('') || '<p class="muted-copy">Nenhum depósito registrado ainda.</p>'}</div><div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">+</span>Guardar</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
+  sheet.showModal();
+  sheet.querySelector('.cancel')?.focus();
+}
+
+function shiftMonthKeyLocal(month, amount) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + amount, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function openBoxEditor(name) {
   const box = state.configuration.caixinhas.find((item) => item.nome === name);
   if (!box) return;
   elements.boxForm.elements.currentName.value = box.nome;
@@ -227,6 +353,17 @@ function handleBoxAction(event) {
   elements.boxForm.elements.meta.value = box.meta;
   elements.boxDialog.showModal();
   setTimeout(() => elements.boxForm.elements.nome.focus(), 0);
+}
+
+function handleBoxAction(event) {
+  const saveName = event.target.closest('[data-save-box]')?.dataset.saveBox;
+  if (saveName) return openBoxDeposit(saveName);
+  const editName = event.target.closest('[data-edit-box]')?.dataset.editBox;
+  if (editName) return openBoxEditor(editName);
+  const historyName = event.target.closest('[data-box-history]')?.dataset.boxHistory;
+  if (historyName) return openBoxHistory(historyName);
+  const planName = event.target.closest('[data-box-plan]')?.dataset.boxPlan;
+  if (planName) openBoxSheet(planName);
 }
 
 async function saveBox(event) {
@@ -266,33 +403,102 @@ function applyLocalBox(box) {
 
 function renderTransactions() {
   const query = normalize(state.search);
-  const filtered = state.transactions.filter((item) => {
-    const isVisible = item.fonte === 'pluggy-bill' || item.fonte !== 'pluggy';
-    const matchesSearch = !query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel}`).includes(query);
-    const status = item.situacao || item.status;
-    const matchesType = state.transactionFilter === 'all'
-      || (state.transactionFilter === 'pending' && ['Pendente', 'Aberta', 'Projetada'].includes(status))
-      || (state.transactionFilter === 'paid' && ['Pago', 'Paga'].includes(status))
-      || (state.transactionFilter === 'income' && ['Receita', 'Resgate', 'Estorno'].includes(item.tipo))
-      || (state.transactionFilter === 'expense' && ['Despesa', 'Pagamento Fatura'].includes(item.tipo))
-      || (state.transactionFilter === 'deposit' && ['Depósito', 'Depósito Caixinha'].includes(item.tipo));
-    return isVisible && matchesSearch && matchesType;
-  }).sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
-  document.querySelector('#transaction-count').textContent = `${filtered.length} ${filtered.length === 1 ? 'lançamento' : 'lançamentos'} no período`;
-  elements.list.innerHTML = filtered.length ? filtered.map((item) => {
-    const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
-    const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
-    const imported = item.fonte === 'pluggy';
-    const bill = item.fonte === 'pluggy-bill';
-    const billLocked = bill && ['Aberta', 'Projetada'].includes(item.situacao);
-    const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
-    const paid = item.status === 'Pago';
-    const billTag = item.situacao === 'Aberta' ? 'Aberta' : item.ajustada ? 'Ajustada' : item.situacao === 'Projetada' ? 'Projetada' : item.estimada ? 'Estimada' : 'Pluggy';
-    const source = bill ? item.fontePagamento : (item.origem === 'Cartão de Crédito' ? (item.cartao || 'Cartão') : item.origem);
-    const displayedStatus = bill ? item.situacao : item.status;
-    const statusClass = displayedStatus === 'Paga' || displayedStatus === 'Pago' ? 'paid' : displayedStatus === 'Projetada' ? 'projected' : displayedStatus === 'Aberta' ? 'open' : 'pending';
-    return `<article class="detailed-transaction ${paid ? '' : 'pending-row'} ${bill ? 'imported-row' : ''}"><button class="status-toggle ${paid ? 'paid' : ''}" ${imported || deposit || billLocked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} title="${billLocked ? `Fatura ${item.situacao.toLowerCase()}` : bill ? `Marcar fatura como ${paid ? 'pendente' : 'paga'}` : `Marcar como ${paid ? 'pendente' : 'pago'}`}">${paid ? iconSvg('check') : ''}</button><div class="transaction-info"><strong>${escapeHtml(item.descricao)}</strong><div class="transaction-meta"><time datetime="${escapeHtml(item.data)}">${fullDate(item.data)}</time><span>·</span><span>${escapeHtml(item.categoria)}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}</span>${bill ? `<span class="source-tag">${billTag}</span>` : ''}</div></div><div class="transaction-value ${valueClass}">${positive || deposit ? '+' : '−'} ${money(item.valor)}</div><div class="transaction-status"><span class="status-pill ${statusClass}">${paid ? iconSvg('check') : ''}${escapeHtml(displayedStatus)}</span><span class="paid-origin">${escapeHtml(source)}</span></div>${bill && !billLocked ? `<div class="transaction-actions"><button class="action-button edit" data-edit-bill="${escapeHtml(item.id)}" title="Ajustar valor e fonte" aria-label="Ajustar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button></div>` : bill ? '<div class="transaction-actions synced-lock">Sincronizada</div>' : `<div class="transaction-actions"><button class="action-button edit" data-edit="${escapeHtml(item.id)}" title="Editar valor e detalhes" aria-label="Editar ${escapeHtml(item.descricao)}">${iconSvg('edit')}<span>Editar</span></button><button class="action-button delete" data-delete="${escapeHtml(item.id)}" title="Excluir lançamento" aria-label="Excluir ${escapeHtml(item.descricao)}">${iconSvg('trash')}<span>Excluir</span></button></div>`}</article>`;
-  }).join('') : '<div class="empty-state panel"><span>↕</span><p>Nenhum lançamento encontrado.</p></div>';
+  const today = todayText();
+  const weekEnd = shiftDateLocal(today, 6);
+  const filter = state.transactionFilter;
+  const matchesFilter = (item) => filter === 'all'
+    || (filter === 'payable' && ['Despesa', 'Pagamento Fatura'].includes(item.tipo))
+    || (filter === 'receivable' && item.tipo === 'Receita');
+  const items = state.transactions
+    .filter((item) => item.fonte !== 'pluggy' && matchesFilter(item) && (!query || normalize(`${item.descricao} ${item.categoria} ${item.responsavel} ${item.cartao || ''}`).includes(query)))
+    .sort((a, b) => a.data.localeCompare(b.data) || (a.ordem || 0) - (b.ordem || 0));
+  const done = items.filter(isTransactionDone);
+  const open = items.filter((item) => !isTransactionDone(item));
+  const remaining = open.reduce((sum, item) => sum + item.valor, 0);
+  const words = { payable: ['pagas', 'a pagar', 'Pagas'], receivable: ['recebidas', 'a receber', 'Recebidas'], all: ['concluídos', 'pendentes', 'Concluídos'] }[filter] || ['concluídos', 'pendentes', 'Concluídos'];
+  document.querySelector('#transaction-count').textContent = `${items.length} ${items.length === 1 ? 'lançamento' : 'lançamentos'} no período`;
+  document.querySelector('#transaction-progress-label').textContent = items.length ? `${done.length} de ${items.length} ${words[0]} · ${money(remaining)} ${words[1]}` : 'Nada por aqui neste mês';
+  document.querySelector('#transaction-progress-bar').style.width = `${items.length ? done.length / items.length * 100 : 0}%`;
+  const groups = [
+    ['Atrasadas', open.filter((item) => item.data < today), 'overdue'],
+    ['Esta semana', open.filter((item) => item.data >= today && item.data <= weekEnd), ''],
+    ['Mais tarde', open.filter((item) => item.data > weekEnd), '']
+  ].filter(([, list]) => list.length);
+  const groupHtml = groups.map(([title, list, tone]) => `<section class="check-group ${tone}"><h3 class="check-group-title">${title}<span>${list.length}</span></h3><div class="check-list">${list.map((item) => checkRow(item, today)).join('')}</div></section>`).join('');
+  const doneHtml = done.length ? `<details class="check-group done-group"><summary class="check-group-title">${words[2]}<span>${done.length}</span></summary><div class="check-list">${done.map((item) => checkRow(item, today)).join('')}</div></details>` : '';
+  elements.list.innerHTML = groupHtml + doneHtml || '<div class="check-empty"><p>Nenhum lançamento encontrado.</p></div>';
+}
+
+function isTransactionDone(item) {
+  return ['Pago', 'Paga'].includes(item.status);
+}
+
+function checkRow(item, today) {
+  const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
+  const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+  const bill = item.fonte === 'pluggy-bill';
+  const locked = bill && ['Aberta', 'Projetada'].includes(item.situacao);
+  const paid = isTransactionDone(item);
+  const overdue = !paid && item.data < today;
+  const when = paid ? `${positive ? 'Recebido' : 'Pago'} ${shortDate(item.data)}` : `${overdue ? 'Venceu' : positive ? 'Entra' : 'Vence'} ${shortDate(item.data)}`;
+  const tag = bill ? (item.estimada ? ' · estimativa' : item.ajustada ? ' · ajustada' : '') : '';
+  const meta = `${when}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}${tag}`;
+  const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
+  const sign = deposit ? '' : positive ? '+ ' : '− ';
+  const label = `${paid ? 'Desmarcar' : 'Marcar'} ${escapeHtml(item.descricao)} como ${positive ? 'recebido' : 'pago'}`;
+  return `<div class="check-row ${paid ? 'done' : ''} ${overdue ? 'overdue' : ''}"><button type="button" class="check-circle ${paid ? 'checked' : ''}" ${deposit || locked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} aria-label="${label}">${paid ? iconSvg('check') : ''}</button><button type="button" class="check-main" data-open-actions="${escapeHtml(item.id)}" title="Opções do lançamento"><span class="check-text"><strong>${escapeHtml(item.descricao)}</strong><span>${meta}</span></span><strong class="check-value ${valueClass}">${sign}${money(item.valor)}</strong><span class="row-more" aria-hidden="true">⋮</span></button></div>`;
+}
+
+function openActionSheet(id) {
+  const item = state.transactions.find((entry) => entry.id === id);
+  if (!item) return;
+  const positive = ['Receita', 'Resgate', 'Estorno'].includes(item.tipo);
+  const deposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+  const bill = item.fonte === 'pluggy-bill';
+  const locked = bill && ['Aberta', 'Projetada'].includes(item.situacao);
+  const paid = isTransactionDone(item);
+  const actions = [];
+  if (!deposit && !locked) actions.push(['toggle', paid ? `Marcar como ${positive ? 'não recebido' : 'pendente'}` : `Marcar como ${positive ? 'recebido' : 'pago'}`, '✓']);
+  if (bill && !locked) actions.push(['bill', 'Ajustar valor da fatura', '✎']);
+  if (!bill) actions.push(['edit', 'Editar', '✎'], ['delete', 'Excluir', '✕']);
+  const sheet = document.querySelector('#action-sheet');
+  sheet.dataset.id = id;
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(item.descricao)}</p><p class="sheet-sub">${deposit ? '' : positive ? '+ ' : '− '}${money(item.valor)} · ${fullDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</p><div class="sheet-actions">${actions.map(([action, label, icon]) => `<button type="button" data-sheet-action="${action}" class="${action === 'delete' ? 'danger' : ''}"><span aria-hidden="true">${icon}</span>${label}</button>`).join('')}<button type="button" class="cancel" data-sheet-action="cancel">Cancelar</button></div></div>`;
+  sheet.showModal();
+  sheet.querySelector('.cancel')?.focus();
+}
+
+function handleSheetAction(event) {
+  const sheet = event.currentTarget;
+  if (event.target === sheet) return sheet.close();
+  const button = event.target.closest('[data-sheet-action]');
+  if (!button) return;
+  const action = button.dataset.sheetAction;
+  sheet.close();
+  if (action === 'box-save') return openBoxDeposit(sheet.dataset.box);
+  if (action === 'box-edit') return openBoxEditor(sheet.dataset.box);
+  if (action === 'box-history') return openBoxHistory(sheet.dataset.box);
+  const item = state.transactions.find((entry) => entry.id === sheet.dataset.id);
+  if (!item) return;
+  if (action === 'toggle') return toggleStatus(item.id, button);
+  if (action === 'edit') return openForm(item);
+  if (action === 'bill') return openBillForm(item);
+  if (action === 'delete') return deleteTransactionById(item.id);
+}
+
+function toggleListSearch() {
+  const field = document.querySelector('#list-search');
+  field.hidden = !field.hidden;
+  document.querySelector('#search-toggle').setAttribute('aria-expanded', String(!field.hidden));
+  if (!field.hidden) document.querySelector('#transaction-search').focus();
+}
+
+function openBoxDeposit(name) {
+  openForm(null, 'Depósito');
+  const select = document.querySelector('#box-select');
+  if (select) select.value = name;
+  elements.form.elements.descricao.value = `Guardar em ${name}`;
+  document.querySelector('#dialog-title').textContent = `Guardar em ${name}`;
 }
 
 function renderCards() {
@@ -307,7 +513,6 @@ function renderCards() {
   const status = document.querySelector('#pluggy-status');
   status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s)` : data.hasConfiguredItems ? 'Toque em sincronizar para a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel.');
   status.classList.toggle('error-copy', Boolean(data.error));
-  document.querySelector('#sync-pluggy-button').hidden = Boolean(currentSession?.demo);
   renderCeiling(data, budget, monthLabel);
   document.querySelector('#connected-card-grid').innerHTML = cards.length ? cards.map((card, index) => {
     const billTotal = bills.filter((bill) => bill.accountId === card.id).reduce((sum, bill) => sum + bill.valor, 0);
@@ -547,6 +752,7 @@ async function changeCardResponsible(event) {
 }
 
 async function synchronizePluggy() {
+  if (currentSession?.demo) return notify('A sincronização com os bancos funciona só com o login Google.');
   const button = document.querySelector('#sync-pluggy-button');
   const previousMentorUpdate = state.mentor?.sync?.updatedAt;
   button.disabled = true;
@@ -577,39 +783,12 @@ async function refreshSyncMentor(previousUpdate) {
   }
 }
 
-function renderAnalysis() {
-  const months = state.analysis.months || [];
-  const categories = [...new Set(months.flatMap((month) => Object.keys(month.categories || {})))].sort();
-  const filters = document.querySelector('#analysis-filters');
-  filters.innerHTML = [`<button data-analysis-filter="all" class="${state.analysisFilter === 'all' ? 'active' : ''}">Geral</button>`, ...categories.map((category) => `<button data-analysis-filter="${escapeHtml(category)}" class="${state.analysisFilter === category ? 'active' : ''}">${escapeHtml(category)}</button>`)].join('');
-  document.querySelector('#analysis-filter-label').textContent = state.analysisFilter === 'all' ? 'Todos os gastos' : state.analysisFilter;
-  const values = months.map((month) => state.analysisFilter === 'all' ? month.total : (month.categories?.[state.analysisFilter] || 0));
-  const maximum = Math.max(...values, 1);
-  document.querySelector('#trend-chart').innerHTML = months.map((month, index) => `<div class="trend-column"><strong>${money(values[index])}</strong><div><span style="height:${Math.max(3, values[index] / maximum * 100)}%;--bar:${Math.max(3, values[index] / maximum * 100)}%"></span></div><small>${monthLabel(month.month)}</small></div>`).join('') || '<div class="empty-state"><p>Histórico indisponível.</p></div>';
-  const current = values.at(-1) || 0;
-  const filled = values.filter((value) => value > 0);
-  const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
-  document.querySelector('#trend-metrics').innerHTML = `<div><span>Mês atual</span><strong>${money(current)}</strong></div><div><span>Média (meses com gasto)</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${money(Math.max(...values, 0))}</strong></div>`;
-  const responsibleValues = months.at(-1)?.responsibles || {};
-  const responsibleKeys = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])];
-  const responsibles = responsibleKeys.map((name) => [name, responsibleValues[name] || 0]);
-  const responsibleTotal = responsibles.reduce((sum, entry) => sum + entry[1], 0) || 1;
-  document.querySelector('#responsible-chart').innerHTML = responsibles.map(([name, value]) => `<div class="responsible-row"><div><strong>${responsibleName(name)}</strong><span>${Math.round(value / responsibleTotal * 100)}% · ${money(value)}</span></div><div class="bar-track"><div class="bar" style="width:${value / responsibleTotal * 100}%"></div></div></div>`).join('') || '<p class="muted-copy">Sem despesas no período.</p>';
-}
-
 function handleFilter(event) {
   const button = event.target.closest('[data-filter]');
   if (!button) return;
   state.transactionFilter = button.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item === button));
   renderTransactions();
-}
-
-function handleAnalysisFilter(event) {
-  const button = event.target.closest('[data-analysis-filter]');
-  if (!button) return;
-  state.analysisFilter = button.dataset.analysisFilter;
-  renderAnalysis();
 }
 
 function populateSelects() {
@@ -760,11 +939,16 @@ async function handleTransactionAction(event) {
   const editId = event.target.closest('[data-edit]')?.dataset.edit;
   const deleteId = event.target.closest('[data-delete]')?.dataset.delete;
   const statusId = event.target.closest('[data-status]')?.dataset.status;
+  const actionsId = event.target.closest('[data-open-actions]')?.dataset.openActions;
   if (billId) return openBillForm(state.transactions.find((item) => item.id === billId));
   if (editId) return openForm(state.transactions.find((item) => item.id === editId));
   if (statusId) return toggleStatus(statusId, event.target.closest('[data-status]'));
-  if (!deleteId) return;
-  const transaction = state.transactions.find((item) => item.id === deleteId);
+  if (actionsId) return openActionSheet(actionsId);
+  if (deleteId) return deleteTransactionById(deleteId);
+}
+
+async function deleteTransactionById(id) {
+  const transaction = state.transactions.find((item) => item.id === id);
   if (!transaction || !confirm(`Excluir “${transaction.descricao}”?`)) return;
   try {
     const result = await mutate('delete', transaction);

@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=37">
+  <link rel="stylesheet" href="/css/style.css?v=42">
   <title>DuoFinance | Visão geral</title>
 </head>
 
@@ -106,112 +106,56 @@
       </section>
 
       <section class="tab-view" data-view="transactions">
-        <div class="view-heading">
-          <div>
-            <p class="eyebrow">ROTINA DO MÊS</p>
-            <h2>Contas do mês</h2>
-            <p id="transaction-count">0 lançamentos no período</p>
-          </div>
+        <div class="list-head">
+          <div><h2 class="list-title">Contas do mês</h2><p class="list-progress-label" id="transaction-progress-label">—</p></div>
+          <button class="icon-round" id="search-toggle" type="button" aria-label="Buscar lançamento" aria-expanded="false" aria-controls="list-search">⌕</button>
         </div>
-        <div class="list-tools panel"><label class="search-field"><span aria-hidden="true">⌕</span><input
-              id="transaction-search" type="search"
-              placeholder="Buscar por descrição, categoria ou responsável..."></label>
-          <div class="filter-tabs" id="transaction-filters"><button class="active"
-              data-filter="all">Todas</button><button data-filter="income">Receitas</button><button
-              data-filter="expense">Despesas</button><button data-filter="deposit">Depósitos</button><button
-              data-filter="pending">Pendentes</button><button data-filter="paid">Pagas</button></div>
-        </div>
-        <div class="detailed-list" id="transaction-list"></div>
+        <div class="list-progress" aria-hidden="true"><span id="transaction-progress-bar"></span></div>
+        <label class="search-field list-search" id="list-search" hidden><span aria-hidden="true">⌕</span><input id="transaction-search" type="search" placeholder="Buscar por descrição, categoria ou responsável..."></label>
+        <div class="segmented" id="transaction-filters" role="group" aria-label="Filtrar lançamentos"><button class="active" type="button" data-filter="payable">A pagar</button><button type="button" data-filter="receivable">A receber</button><button type="button" data-filter="all">Tudo</button></div>
+        <p class="sr-only" id="transaction-count" aria-live="polite"></p>
+        <div class="checklist" id="transaction-list"></div>
       </section>
 
       <section class="tab-view" data-view="analysis">
-        <div class="view-heading">
-          <div>
-            <p class="eyebrow">PADRÕES E ESCOLHAS</p>
-            <h2>Análise financeira</h2>
-            <p>Compare os últimos três meses e descubra onde agir.</p>
-          </div>
-        </div>
-        <article class="panel trend-panel">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">EVOLUÇÃO DAS DESPESAS</p>
-              <h2>Histórico trimestral</h2>
-            </div><span class="soft-label" id="analysis-filter-label">Todos os gastos</span>
-          </div>
-          <div class="analysis-filters" id="analysis-filters"></div>
-          <div class="trend-layout">
-            <div class="trend-chart" id="trend-chart"></div>
-            <div class="trend-metrics" id="trend-metrics"></div>
-          </div>
-        </article>
-        <article class="panel cashflow-panel analysis-cashflow">
-          <div class="panel-head">
-            <div>
-              <p class="eyebrow">PREVISIBILIDADE</p>
-              <h2>Fluxo de caixa do mês</h2>
-            </div><span class="risk-badge" id="cashflow-risk">Calculando</span>
-          </div>
+        <section class="analysis-hero" aria-label="Gasto do mês">
+          <p class="home-label" id="analysis-month-label">Gasto no mês</p>
+          <div class="analysis-total"><strong id="analysis-total">R$ 0,00</strong><span class="trend-badge" id="analysis-trend" hidden></span></div>
+          <div class="segmented segmented-sm" id="analysis-period" role="group" aria-label="Período do gráfico"><button type="button" class="active" data-period="3">3 meses</button><button type="button" data-period="6">6 meses</button><button type="button" data-period="12">12 meses</button></div>
+          <div class="period-chart" id="trend-chart"></div>
+          <div class="period-stats" id="trend-metrics"></div>
+        </section>
+        <section class="home-section">
+          <div class="home-section-head"><h2>Por categoria</h2><span class="soft-label" id="expense-count">0 lançamentos</span></div>
+          <div class="category-list" id="category-chart"></div>
+          <div class="check-empty" id="chart-empty" hidden><p>Nenhuma despesa neste mês.</p></div>
+        </section>
+        <section class="home-section">
+          <div class="home-section-head"><h2>Divisão do casal</h2></div>
+          <div class="split-card" id="responsible-chart"></div>
+        </section>
+        <section class="home-section analysis-flow">
+          <div class="home-section-head"><h2>Fluxo do mês</h2><span class="risk-badge" id="cashflow-risk">Calculando</span></div>
           <div id="cashflow-cycles"></div>
           <details class="cashflow-detail">
             <summary>Ver dia a dia</summary>
             <div class="cashflow-chart" id="cashflow-chart"></div>
           </details>
           <div class="cashflow-summary" id="cashflow-summary"></div>
-        </article>
-        <section class="analysis-grid">
-          <article class="panel spending-panel">
-            <div class="panel-head">
-              <div>
-                <p class="eyebrow">MÊS ATUAL</p>
-                <h2>Gastos por categoria</h2>
-              </div><span class="soft-label" id="expense-count">0 lançamentos</span>
-            </div>
-            <div id="category-chart" class="category-chart"></div>
-            <div class="empty-state" id="chart-empty" hidden>
-              <p>Nenhuma despesa neste mês.</p>
-            </div>
-          </article>
-          <article class="panel responsible-panel">
-            <div>
-              <p class="eyebrow">DIVISÃO DO CASAL</p>
-              <h2>Por responsável</h2>
-            </div>
-            <div id="responsible-chart"></div>
-          </article>
         </section>
-        <article class="panel ai-panel">
-          <div class="mentor-title"><span class="spark">✦</span>
-            <div>
-              <p class="eyebrow">MENTOR DUO</p>
-              <h2>Uma análise para vocês</h2>
-            </div>
-          </div>
-          <blockquote id="insight-text">Use a IA para traduzir os gráficos em uma reflexão simples e uma próxima ação
-            concreta.</blockquote><button class="button mentor-button" id="analyze-button">Analisar dados com IA
-            <span>→</span></button>
-        </article>
+        <section class="home-mentor analysis-mentor" aria-label="Mentor Duo">
+          <span class="spark" aria-hidden="true">✦</span>
+          <div><p id="insight-text">Use a IA para traduzir os números em uma reflexão simples e uma próxima ação concreta.</p><button type="button" class="text-button" id="analyze-button">Analisar dados com IA →</button></div>
+        </section>
       </section>
 
       <section class="tab-view" data-view="boxes">
-        <section class="boxes-hero">
-          <div>
-            <p class="eyebrow">PATRIMÔNIO DOS PLANOS</p>
-            <h2>Economia das caixinhas</h2><strong id="boxes-total">R$ 0,00</strong>
-          </div><svg class="boxes-hero-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="6" width="18" height="12" rx="2" />
-            <circle cx="12" cy="12" r="2.5" />
-            <path d="M7 9H5m14 6h-2" />
-          </svg>
+        <section class="home-hero" aria-label="Total guardado">
+          <p class="home-label">Total guardado</p>
+          <div class="home-balance" id="boxes-total">R$ 0,00</div>
+          <p class="home-progress-label" id="boxes-subtitle"></p>
         </section>
-        <div class="view-heading">
-          <div>
-            <p class="eyebrow">OBJETIVOS</p>
-            <h2>Todas as caixinhas</h2>
-            <p>Saldo acumulado, metas e progresso de cada plano.</p>
-          </div>
-        </div>
-        <div class="all-box-grid" id="box-grid"></div>
+        <div class="box-list" id="box-grid"></div>
       </section>
 
       <section class="tab-view" data-view="cards">
@@ -326,6 +270,8 @@
     </div>
   </dialog>
 
+  <dialog id="action-sheet" class="sheet" aria-label="Ações do lançamento"></dialog>
+
   <div class="fab" id="fab">
     <div class="fab-menu" id="fab-menu" role="menu" hidden>
       <button type="button" role="menuitem" data-fab-action="despesa"><span>−</span>Nova despesa</button>
@@ -337,7 +283,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=37"></script>
+  <script type="module" src="/js/app.js?v=42"></script>
 </body>
 
 </html>
