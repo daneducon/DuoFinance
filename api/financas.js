@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -42,7 +42,7 @@ async function getFinances(req, res) {
     ...pluggyBills.filter((item) => item.mesRef === previousMonth)
   ], configuration.caixinhas, manualTransactions);
   const comparison = { month: previousMonth, receitas: previousSummary.receitas, despesas: previousSummary.despesas };
-  summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month) }));
+  summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month), history: boxHistory(manualTransactions, box.nome) }));
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   const pluggyAccounts = await sheets.listPluggyAccounts();
@@ -57,7 +57,7 @@ async function getFinances(req, res) {
     summary,
     cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month),
     cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso() }),
-    analysis: buildAnalysis(accountingTransactions, month)
+    analysis: buildAnalysis(accountingTransactions, month, 12)
   });
 }
 

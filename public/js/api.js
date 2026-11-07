@@ -58,7 +58,7 @@ function sameLabel(left, right) {
   return String(left || '').trim().toLocaleLowerCase('pt-BR') === String(right || '').trim().toLocaleLowerCase('pt-BR');
 }
 
-function macroCategory(value) {
+export function macroCategory(value) {
   const label = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const has = (terms) => terms.some((term) => label.includes(term));
   if (has(['accommodation', 'housing', 'houseware', 'telecommunication', 'moradia', 'aluguel', 'condominio', 'energia', 'internet', 'agua', 'servicos domesticos'])) return 'Moradia e Contas';

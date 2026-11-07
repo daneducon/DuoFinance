@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { calculateCashCycles, projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
+const { boxHistory, calculateCashCycles, projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
 const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 const { buildMonthlyCardBudget, budgetRisk, spendingFlag, isManualCardBill } = require('../lib/budget');
 
@@ -417,3 +417,13 @@ test('divide o mês em ciclos entre receitas e sinaliza o ciclo que fica no nega
   assert.equal(calculateCashCycles([], '2026-10', { today: '2026-11-03' }).pastMonth, true);
 });
 
+test('lista o histórico da caixinha do movimento mais recente ao mais antigo', () => {
+  const history = boxHistory([
+    { tipo: 'Depósito', valor: 200, data: '2026-09-10', descricao: 'Setembro', categoria: 'Viagem', origem: 'Conta Corrente' },
+    { tipo: 'Depósito', valor: 300, data: '2026-10-10', descricao: 'Outubro', categoria: 'Viagem', origem: 'Conta Corrente' },
+    { tipo: 'Resgate', valor: 50, data: '2026-10-20', descricao: 'Passagem', categoria: 'Metas', origem: 'Viagem' },
+    { tipo: 'Depósito', valor: 100, data: '2026-10-12', descricao: 'Outra caixinha', categoria: 'Reserva', origem: 'Conta Corrente' },
+    { tipo: 'Despesa', valor: 80, data: '2026-10-15', descricao: 'Mercado', categoria: 'Mercado', origem: 'Conta Corrente' }
+  ], 'Viagem');
+  assert.deepEqual(history.map((item) => item.descricao), ['Passagem', 'Outubro', 'Setembro']);
+});
