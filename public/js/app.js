@@ -624,7 +624,9 @@ function compactMoney(value) {
 
 function openBillHistory(id) {
   const card = (state.cardsData.cards || []).find((item) => item.id === id);
-  const history = (state.cardsData.billHistory || {})[id] || [];
+  // Histórico termina no mês selecionado: parcelas futuras não são faturas passadas.
+  const cutoff = elements.month.value;
+  const history = ((state.cardsData.billHistory || {})[id] || []).filter((bill) => bill.mesRef <= cutoff).slice(-12);
   const official = history.filter((bill) => !bill.estimada);
   const average = official.length ? official.reduce((sum, bill) => sum + bill.valor, 0) / official.length : 0;
   const highest = official.reduce((max, bill) => (bill.valor > (max?.valor || 0) ? bill : max), null);
