@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -56,7 +56,7 @@ async function getFinances(req, res) {
     mentor,
     summary,
     cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month),
-    cashCycles: calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso() }),
+    cashCycles: { ...calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso() }), freeUntil: freeUntilNextIncome([...manualTransactions, ...pluggyBills], anchorBalance, todayIso()) },
     analysis: buildAnalysis(accountingTransactions, month, 12)
   });
 }

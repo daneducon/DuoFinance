@@ -711,18 +711,11 @@ function renderCeiling(data, budget, monthLabel) {
 
 function renderHomeHero(summary) {
   const cycles = state.cashCycles || calculateLocalCashCycles();
-  const today = todayText();
-  const current = (cycles.cycles || []).find((cycle) => cycle.start <= today && today <= cycle.end);
+  const freeText = freeUntilText(cycles.freeUntil || calculateLocalFreeUntil());
   const free = document.querySelector('#home-free');
-  if (current) {
-    free.hidden = false;
-    free.className = `home-free ${current.status === 'falta' ? 'negative' : ''}`;
-    free.innerHTML = current.status === 'falta'
-      ? `Faltam <strong>${money(current.falta)}</strong> até ${shortDate(current.end)}`
-      : `<strong>${money(Math.max(0, cycles.safeToSpend ?? current.livre))}</strong> livres até ${shortDate(current.end)}`;
-  } else {
-    free.hidden = true;
-  }
+  free.hidden = !freeText;
+  free.className = `home-free ${cycles.freeUntil?.amount < 0 ? 'negative' : ''}`;
+  free.innerHTML = freeText || '';
   const committed = summary.receitas > 0 ? summary.despesas / summary.receitas * 100 : 0;
   const progress = document.querySelector('#home-progress');
   progress.hidden = !(summary.receitas > 0);
@@ -1051,6 +1044,15 @@ function calculateSummary() {
   return result;
 }
 
+// Texto do "livre até" a partir do saldo em contas e das contas ainda não pagas.
+function freeUntilText(free) {
+  if (!free) return '';
+  const until = shortDate(free.until);
+  return free.amount >= 0
+    ? `<strong>${money(free.amount)}</strong> livres até ${until}`
+    : `Faltam <strong class="negative">${money(-free.amount)}</strong> até ${until}`;
+}
+
 function renderCycles(data) {
   const container = document.querySelector('#cashflow-cycles');
   const cycles = data.cycles || [];
@@ -1060,10 +1062,12 @@ function renderCycles(data) {
   }
   const today = todayText();
   const current = cycles.find((cycle) => cycle.start <= today && today <= cycle.end) || cycles[0];
-  const livre = Number(data.safeToSpend ?? current.livre ?? 0);
-  const headline = current.status === 'ok'
-    ? `Você pode gastar <strong>${money(livre)}</strong> livres até ${shortDate(current.end)}.`
-    : `Até ${shortDate(current.end)} faltam <strong class="negative">${money(current.falta)}</strong>. Antecipe ou adie compromissos.`;
+  const freeText = freeUntilText(data.freeUntil);
+  const headline = freeText
+    ? `${freeText}.`
+    : current.status === 'ok'
+      ? `Você pode gastar <strong>${money(current.livre)}</strong> livres até ${shortDate(current.end)}.`
+      : `Até ${shortDate(current.end)} faltam <strong class="negative">${money(current.falta)}</strong>. Antecipe ou adie compromissos.`;
   container.innerHTML = `<p class="cycle-headline">${headline}</p><div class="cycle-grid">${cycles.map((cycle) => cycleCard(cycle, today)).join('')}</div>`;
 }
 
@@ -1121,6 +1125,16 @@ function calculateLocalCashCycles() {
   });
   const current = cycles.find((cycle) => cycle.start <= today && today <= cycle.end);
   return { pastMonth: false, cycles, safeToSpend: current ? Math.max(0, current.livre) : null };
+}
+
+// Demonstração: mesma regra do servidor, com o saldo do resumo como saldo em contas.
+function calculateLocalFreeUntil() {
+  const today = todayText();
+  const monthEnd = `${today.slice(0, 7)}-${String(new Date(Number(today.slice(0, 4)), Number(today.slice(5, 7)), 0).getDate()).padStart(2, '0')}`;
+  const nextIncome = state.transactions.filter((item) => item.tipo === 'Receita' && item.data && item.data > today).map((item) => item.data).sort()[0];
+  const until = nextIncome ? shiftDateLocal(nextIncome, -1) : monthEnd;
+  const pending = state.transactions.filter((item) => item.status === 'Pendente' && item.data && item.data <= until && ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).reduce((sum, item) => sum + Number(item.valor || 0), 0);
+  return { amount: (state.summary?.saldoAtual || 0) - pending, pending, until, nextIncome: nextIncome || null };
 }
 
 function shiftDateLocal(date, days) {

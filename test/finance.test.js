@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { boxHistory, calculateCashCycles, projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
+const { freeUntilNextIncome, boxHistory, calculateCashCycles, projectBox, summarize, validateTransaction, validateBox, calculateCashFlow, buildAnalysis, parseMoney, macroCategory, billSituation, nextMonth, defaultCardResponsible, withoutSupersededCardBills } = require('../lib/finance');
 const { mapTransaction, mapBills, isCardCreditAdjustment } = require('../lib/pluggy');
 const { buildMonthlyCardBudget, budgetRisk, spendingFlag, isManualCardBill } = require('../lib/budget');
 
@@ -426,4 +426,17 @@ test('lista o histórico da caixinha do movimento mais recente ao mais antigo', 
     { tipo: 'Despesa', valor: 80, data: '2026-10-15', descricao: 'Mercado', categoria: 'Mercado', origem: 'Conta Corrente' }
   ], 'Viagem');
   assert.deepEqual(history.map((item) => item.descricao), ['Passagem', 'Outubro', 'Setembro']);
+});
+
+test('livre até a próxima receita desconta só as contas ainda não pagas', () => {
+  const transactions = [
+    { tipo: 'Despesa', valor: 200, data: '2026-11-05', status: 'Pendente' },
+    { tipo: 'Despesa', valor: 300, data: '2026-11-15', status: 'Pago' },
+    { tipo: 'Despesa', valor: 500, data: '2026-11-19', status: 'Pendente' },
+    { tipo: 'Receita', valor: 1000, data: '2026-11-20', status: 'Pendente' }
+  ];
+  const free = freeUntilNextIncome(transactions, 4700, '2026-11-11');
+  assert.equal(free.amount, 4000);
+  assert.equal(free.until, '2026-11-19');
+  assert.equal(free.nextIncome, '2026-11-20');
 });
