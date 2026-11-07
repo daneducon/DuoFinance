@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles } = require('../lib/finance');
+const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 
 module.exports = async function handler(req, res) {
@@ -35,6 +35,13 @@ async function getFinances(req, res) {
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
   const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
+  // Mês anterior com o mesmo critério dos cards, para o comparativo de receitas e despesas.
+  const previousMonth = recentMonths(month, 2)[0];
+  const previousSummary = summarize([
+    ...manualTransactions.filter((item) => item.mesRef === previousMonth),
+    ...pluggyBills.filter((item) => item.mesRef === previousMonth)
+  ], configuration.caixinhas, manualTransactions);
+  const comparison = { month: previousMonth, receitas: previousSummary.receitas, despesas: previousSummary.despesas };
   summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month) }));
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
@@ -43,6 +50,7 @@ async function getFinances(req, res) {
   const bankBalance = pluggyAccounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
   const anchorBalance = hasBank ? bankBalance : summary.saldoAtual;
   send(res, 200, {
+    comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
     mentor,

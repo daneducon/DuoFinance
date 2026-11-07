@@ -22,9 +22,9 @@ module.exports = async function handler(req, res) {
       throw error;
     }
     const paymentMonth = nextMonth(month);
-    const [items, accounts, transactions, bills, nextBills, manualTransactions, budgetData] = await Promise.all([
+    const [items, accounts, transactions, bills, nextBills, manualTransactions, budgetData, allBills] = await Promise.all([
       sheets.listPluggyItems(), sheets.listPluggyAccounts(), sheets.listPluggyTransactions(month), sheets.listPluggyBills(month),
-      sheets.listPluggyBills(paymentMonth), sheets.listAllTransactions(), getCardBudget(month)
+      sheets.listPluggyBills(paymentMonth), sheets.listAllTransactions(), getCardBudget(month), sheets.listPluggyBills()
     ]);
     const manualBills = manualTransactions
       .filter((item) => item.tipo === 'Despesa' && item.mesRef === month && isManualCardBill(item))
@@ -36,9 +36,14 @@ module.exports = async function handler(req, res) {
     }));
     const bankBalance = accounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
     const availableLimit = cards.reduce((sum, card) => sum + (card.availableLimit || 0), 0);
+    // Histórico completo por cartão, para o gráfico de faturas sem trocar de mês.
+    const billHistory = Object.fromEntries(cards.map((card) => [card.id, allBills
+      .filter((bill) => bill.accountId === card.id)
+      .map((bill) => ({ mesRef: bill.mesRef, data: bill.data, valor: bill.valor, status: bill.status, estimada: bill.estimada, ajustada: bill.ajustada }))
+      .sort((a, b) => a.mesRef.localeCompare(b.mesRef))]));
     send(res, 200, {
       configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET),
-      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, nextBills, manualBills, bankBalance, availableLimit, budget: budgetData.budget, spendingMonth: month, paymentMonth
+      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, nextBills, manualBills, billHistory, bankBalance, availableLimit, budget: budgetData.budget, spendingMonth: month, paymentMonth
     });
   } catch (error) {
     errorResponse(res, error);

@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=32">
+  <link rel="stylesheet" href="/css/style.css?v=36">
   <title>DuoFinance | Visão geral</title>
 </head>
 
@@ -65,7 +65,6 @@
                 id="month-picker" type="month" aria-label="Escolher mês de referência"></label>
             <button type="button" id="next-month" aria-label="Próximo mês">›</button>
           </div>
-          <button class="button primary" data-open-form><span>＋</span> Novo lançamento</button>
         </div>
       </header>
 
@@ -88,7 +87,7 @@
                 <path d="M15 7h5v5" />
               </svg></div>
             <div>
-              <p>Receitas do mês</p><strong id="income-total">R$ 0,00</strong><small>Receitas previstas</small>
+              <p>Receitas do mês</p><strong id="income-total">R$ 0,00</strong><span class="trend-badge" id="income-trend" hidden></span><small>Receitas previstas</small>
             </div>
           </article>
           <article class="metric-card">
@@ -97,7 +96,7 @@
                 <path d="M15 17h5v-5" />
               </svg></div>
             <div>
-              <p>Despesas do mês</p><strong id="expense-total">R$ 0,00</strong><small>Despesas previstas</small>
+              <p>Despesas do mês</p><strong id="expense-total">R$ 0,00</strong><span class="trend-badge" id="expense-trend" hidden></span><small>Despesas previstas</small>
             </div>
           </article>
           <article class="metric-card">
@@ -113,6 +112,10 @@
             </div>
           </article>
         </section>
+        <article class="panel upcoming-panel">
+          <div class="panel-head"><div><p class="eyebrow">CHECKLIST DO MÊS</p><h2>Próximos vencimentos</h2></div><button type="button" class="soft-label reminder-button" id="enable-reminders" hidden>Ativar lembretes</button></div>
+          <div class="upcoming-list" id="upcoming-list"></div>
+        </article>
         <article class="panel general-mentor" id="general-mentor">
           <div class="mentor-title"><span class="spark">✦</span><div><p class="eyebrow">MENTOR DUO</p><h2>Um freio antes da próxima escolha</h2></div></div>
           <blockquote id="general-mentor-text">Sincronize os cartões para o Mentor Duo avaliar o impacto dos gastos mais recentes.</blockquote>
@@ -349,8 +352,30 @@
     </form>
   </dialog>
 
+  <dialog id="bill-history-dialog" class="history-dialog">
+    <div class="history-body">
+      <div class="dialog-head">
+        <div><p class="eyebrow">HISTÓRICO DE FATURAS</p><h2 id="bill-history-title">Cartão</h2></div>
+        <button type="button" class="icon-button" data-close-history aria-label="Fechar">×</button>
+      </div>
+      <div class="history-stats" id="bill-history-stats"></div>
+      <div class="history-chart" id="bill-history-chart"></div>
+      <div class="history-list" id="bill-history-list"></div>
+    </div>
+  </dialog>
+
+  <div class="fab" id="fab">
+    <div class="fab-menu" id="fab-menu" role="menu" hidden>
+      <button type="button" role="menuitem" data-fab-action="despesa"><span>−</span>Nova despesa</button>
+      <button type="button" role="menuitem" data-fab-action="receita"><span>+</span>Nova receita</button>
+      <button type="button" role="menuitem" data-fab-action="caixinha"><span>◎</span>Guardar na caixinha</button>
+      <button type="button" role="menuitem" data-fab-action="sync" id="fab-sync"><span>↻</span>Sincronizar bancos</button>
+    </div>
+    <button type="button" class="fab-button" id="fab-button" aria-label="Ações rápidas" aria-haspopup="menu" aria-expanded="false" aria-controls="fab-menu">＋</button>
+  </div>
+
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=35"></script>
+  <script type="module" src="/js/app.js?v=36"></script>
 </body>
 
 </html>

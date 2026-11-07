@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue } from './api.js';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush } from './api.js';
 
 const currentSession = requireSession();
 const state = {
@@ -34,6 +34,16 @@ document.querySelector('#analyze-button').addEventListener('click', generateInsi
 document.querySelector('#sync-pluggy-button').addEventListener('click', synchronizePluggy);
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#connected-card-grid').addEventListener('change', changeCardResponsible);
+document.querySelector('#upcoming-list').addEventListener('click', handleTransactionAction);
+document.querySelector('#fab-button').addEventListener('click', toggleFab);
+document.querySelector('#fab-menu').addEventListener('click', handleFabAction);
+document.addEventListener('click', (event) => { if (!event.target.closest('#fab')) closeFab(); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape') closeFab(); });
+document.querySelector('#enable-reminders').addEventListener('click', enableReminders);
+document.querySelector('#bill-history-dialog').addEventListener('click', (event) => {
+  if (event.target === event.currentTarget || event.target.closest('[data-close-history]')) event.currentTarget.close();
+});
+document.querySelector('#fab-sync').hidden = Boolean(currentSession?.demo);
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
 document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
 document.querySelector('#analysis-filters').addEventListener('click', handleAnalysisFilter);
@@ -72,6 +82,7 @@ if ('serviceWorker' in navigator) {
 switchTab(location.hash.slice(1) || 'general', false);
 updateConnectivity();
 load();
+setupReminders();
 setInterval(() => { if (!document.hidden && navigator.onLine) refreshSyncMentor(); }, 30000);
 
 async function load() {
@@ -84,6 +95,7 @@ async function load() {
     state.summary = data.summary || calculateSummary();
     state.cashFlow = data.cashFlow || calculateLocalCashFlow();
     state.cashCycles = data.cashCycles || null;
+    state.comparison = data.comparison || null;
     state.analysis = data.analysis || { months: [] };
     state.mentor = data.mentor || {};
     state.cardsData = cardsData;
@@ -107,6 +119,9 @@ function render() {
   document.querySelector('#expense-total').textContent = money(summary.despesas);
   document.querySelector('#receivable-total').textContent = money(summary.aReceber);
   document.querySelector('#payable-total').textContent = money(summary.aPagar);
+  renderTrend('#income-trend', summary.receitas, state.comparison?.receitas, 'up-good');
+  renderTrend('#expense-trend', summary.despesas, state.comparison?.despesas, 'up-bad');
+  renderUpcoming();
   document.querySelector('#balance-note').textContent = balanceMessage(summary.saldoPrevisto);
   renderCashFlow();
   renderCategoryChart(summary);
@@ -307,9 +322,127 @@ function renderCards() {
     const active = state.selectedCardId === card.id;
     const updated = card.updatedAt ? fullDate(card.updatedAt.slice(0, 10)) : '—';
     const nextText = nextBill ? `${money(nextBill.valor)} · ${nextBill.estimada ? 'estimativa' : 'oficial'}` : 'sem previsão';
-    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><span class="card-brand">${escapeHtml(card.brand || 'CARTÃO')}</span><strong>${escapeHtml(card.name)}</strong><small>${escapeHtml(card.institution)} · ${escapeHtml(card.number)}</small><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${monthLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${escapeHtml(billStatus)}</small><span class="card-next">Próxima (${nextLabel}): ${nextText}</span></div><div class="card-limit"><span>Disponível ${money(card.availableLimit || 0)}</span><span>Usado ${money(card.usedLimit || 0)}</span></div><span class="card-available">Limite total ${money(card.creditLimit || 0)}<br>Atualizado em ${updated}</span></article>`;
+    return `<article class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}"><div class="card-face"><div class="card-face-top"><span class="card-issuer">${escapeHtml(card.institution)}</span>${brandMark(card.brand)}</div><span class="card-chip" aria-hidden="true"></span><span class="card-number">•••• •••• •••• ${escapeHtml(String(card.number).slice(-4))}</span><div class="card-face-bottom"><strong>${escapeHtml(card.name)}</strong></div></div><label class="card-owner">Responsável<select data-card-owner="${escapeHtml(card.id)}"><option value="Ele" ${card.responsavel === 'Ele' ? 'selected' : ''}>Danilo</option><option value="Ela" ${card.responsavel === 'Ela' ? 'selected' : ''}>Talyta</option><option value="Nós" ${card.responsavel === 'Nós' ? 'selected' : ''}>Casal</option></select></label><div class="card-bill"><span>Fatura de ${monthLabel}</span><strong>${cardBills.length ? money(billTotal) : 'Sem fatura'}</strong><small>${escapeHtml(billStatus)}</small><span class="card-next">Próxima (${nextLabel}): ${nextText}</span></div><div class="card-limit"><span>Disponível ${money(card.availableLimit || 0)}</span><span>Usado ${money(card.usedLimit || 0)}</span></div><span class="card-available">Limite total ${money(card.creditLimit || 0)}<br>Atualizado em ${updated}</span><button type="button" class="card-history-button" data-bill-history="${escapeHtml(card.id)}">Histórico de faturas</button></article>`;
   }).join('') : '<div class="empty-state panel"><p>Nenhum cartão conectado.</p></div>';
   renderCardTransactions();
+}
+
+function brandMark(brand) {
+  const name = String(brand || '').toUpperCase();
+  if (name.includes('MASTER')) return '<span class="card-brand-mark" aria-label="Mastercard"><svg viewBox="0 0 48 30" aria-hidden="true"><circle cx="18" cy="15" r="12" fill="#eb001b"/><circle cx="30" cy="15" r="12" fill="#f79e1b" fill-opacity=".92"/></svg></span>';
+  if (name.includes('VISA')) return '<span class="card-brand-mark brand-visa">VISA</span>';
+  return `<span class="card-brand-mark brand-text">${escapeHtml(name || 'CARTÃO')}</span>`;
+}
+
+function renderTrend(selector, current, previous, mode) {
+  const badge = document.querySelector(selector);
+  if (!state.comparison || !(previous > 0)) {
+    badge.hidden = true;
+    return;
+  }
+  const change = Math.round((current - previous) / previous * 100);
+  const good = mode === 'up-good' ? change >= 0 : change <= 0;
+  badge.hidden = false;
+  badge.className = `trend-badge ${good ? 'good' : 'bad'}`;
+  badge.textContent = `${change > 0 ? '+' : ''}${change}% vs ${fullMonthLabel(state.comparison.month)}`;
+}
+
+function renderUpcoming() {
+  const today = todayText();
+  const items = state.transactions
+    .filter((item) => item.status === 'Pendente' && item.data && ['Despesa', 'Pagamento Fatura', 'Receita'].includes(item.tipo) && item.fonte !== 'pluggy' && !['Aberta', 'Projetada'].includes(item.situacao))
+    .sort((a, b) => a.data.localeCompare(b.data))
+    .slice(0, 5);
+  document.querySelector('#upcoming-list').innerHTML = items.length ? items.map((item) => {
+    const income = item.tipo === 'Receita';
+    const overdue = item.data < today;
+    const label = income ? 'recebido' : 'pago';
+    return `<div class="upcoming-row ${overdue ? 'overdue' : ''}"><button class="status-toggle" data-status="${escapeHtml(item.id)}" title="Marcar como ${label}" aria-label="Marcar ${escapeHtml(item.descricao)} como ${label}"></button><div class="upcoming-info"><strong>${escapeHtml(item.descricao)}</strong><span>${overdue ? 'Venceu' : income ? 'Entra' : 'Vence'} ${shortDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</span></div><strong class="${income ? 'income-value' : 'expense-value'}">${income ? '+' : '−'} ${money(item.valor)}</strong></div>`;
+  }).join('') : '<p class="muted-copy">Tudo em dia neste mês.</p>';
+}
+
+function toggleFab(event) {
+  event.stopPropagation();
+  const menu = document.querySelector('#fab-menu');
+  const open = menu.hidden;
+  menu.hidden = !open;
+  document.querySelector('#fab-button').setAttribute('aria-expanded', String(open));
+  document.querySelector('#fab').classList.toggle('open', open);
+}
+
+function closeFab() {
+  const menu = document.querySelector('#fab-menu');
+  if (menu.hidden) return;
+  menu.hidden = true;
+  document.querySelector('#fab-button').setAttribute('aria-expanded', 'false');
+  document.querySelector('#fab').classList.remove('open');
+}
+
+function handleFabAction(event) {
+  const action = event.target.closest('[data-fab-action]')?.dataset.fabAction;
+  if (!action) return;
+  closeFab();
+  if (action === 'sync') return synchronizePluggy();
+  openForm(null, { despesa: 'Despesa', receita: 'Receita', caixinha: 'Depósito' }[action]);
+}
+
+function compactMoney(value) {
+  return `R$ ${new Intl.NumberFormat('pt-BR', { notation: 'compact', maximumFractionDigits: 1 }).format(value || 0)}`;
+}
+
+function openBillHistory(id) {
+  const card = (state.cardsData.cards || []).find((item) => item.id === id);
+  const history = (state.cardsData.billHistory || {})[id] || [];
+  const official = history.filter((bill) => !bill.estimada);
+  const average = official.length ? official.reduce((sum, bill) => sum + bill.valor, 0) / official.length : 0;
+  const highest = official.reduce((max, bill) => (bill.valor > (max?.valor || 0) ? bill : max), null);
+  document.querySelector('#bill-history-title').textContent = card ? `${card.name} · ${String(card.number).slice(-4)}` : 'Cartão';
+  document.querySelector('#bill-history-stats').innerHTML = `<div><span>Média das faturas</span><strong>${money(average)}</strong></div><div><span>Maior fatura</span><strong>${highest ? `${money(highest.valor)} · ${monthLabel(highest.mesRef)}` : '—'}</strong></div><div><span>Faturas registradas</span><strong>${official.length}</strong></div>`;
+  const maximum = Math.max(...history.map((bill) => bill.valor), 1);
+  const chart = document.querySelector('#bill-history-chart');
+  chart.innerHTML = history.length ? `<div class="history-bars">${history.map((bill) => `<div class="history-bar ${bill.estimada ? 'estimated' : ''} ${bill.mesRef === elements.month.value ? 'current' : ''}" title="${monthLabel(bill.mesRef)}: ${money(bill.valor)}${bill.estimada ? ' (estimativa)' : ''}"><span class="history-value">${compactMoney(bill.valor)}</span><span class="history-track"><span class="history-fill" style="height:${Math.max(3, bill.valor / maximum * 100)}%"></span></span><small>${monthLabel(bill.mesRef)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Nenhuma fatura registrada para este cartão.</p>';
+  document.querySelector('#bill-history-list').innerHTML = [...history].reverse().slice(0, 12).map((bill) => `<div class="history-row"><span>${monthLabel(bill.mesRef)}</span><span class="history-status">${bill.estimada ? 'Estimativa' : bill.ajustada ? 'Ajustada' : escapeHtml(bill.status || '')}</span><strong>${money(bill.valor)}</strong></div>`).join('');
+  document.querySelector('#bill-history-dialog').showModal();
+  requestAnimationFrame(() => {
+    const bars = chart.querySelector('.history-bars');
+    if (bars) bars.scrollLeft = bars.scrollWidth;
+  });
+}
+
+let pushPublicKey = '';
+
+async function setupReminders() {
+  const button = document.querySelector('#enable-reminders');
+  if (currentSession?.demo || !('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) return;
+  try {
+    pushPublicKey = (await fetch('/api/config').then((response) => response.json())).vapidPublicKey || '';
+    if (!pushPublicKey) return;
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    button.hidden = Boolean(existing) && Notification.permission === 'granted';
+  } catch {
+    button.hidden = true;
+  }
+}
+
+async function enableReminders() {
+  const button = document.querySelector('#enable-reminders');
+  button.disabled = true;
+  try {
+    if (await Notification.requestPermission() !== 'granted') throw new Error('Permita as notificações do navegador para receber os lembretes.');
+    const registration = await navigator.serviceWorker.ready;
+    const subscription = (await registration.pushManager.getSubscription())
+      || await registration.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(pushPublicKey) });
+    await subscribePush(subscription.toJSON());
+    button.hidden = true;
+    notify('Lembretes ativados: você recebe um aviso dois dias antes de cada vencimento.');
+  } catch (error) { notify(error.message, true); }
+  finally { button.disabled = false; }
+}
+
+function urlBase64ToUint8Array(value) {
+  const base64 = (value + '='.repeat((4 - value.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/');
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
 function renderCeiling(data, budget, monthLabel) {
@@ -339,6 +472,8 @@ function renderCardTransactions() {
 
 function selectCard(event) {
   if (event.target.closest('[data-card-owner]')) return;
+  const historyId = event.target.closest('[data-bill-history]')?.dataset.billHistory;
+  if (historyId) return openBillHistory(historyId);
   const id = event.target.closest('[data-card-id]')?.dataset.cardId;
   if (!id) return;
   state.selectedCardId = state.selectedCardId === id ? 'all' : id;
@@ -450,11 +585,11 @@ function populateSelects() {
   syncDepositFields();
 }
 
-function openForm(transaction = null) {
+function openForm(transaction = null, presetType = null) {
   if (transaction?.fonte === 'pluggy') return notify('Este lançamento é atualizado automaticamente pela instituição.', true);
   elements.form.reset();
   populateSelects();
-  document.querySelector('#dialog-title').textContent = transaction ? 'Editar lançamento' : 'Novo lançamento';
+  document.querySelector('#dialog-title').textContent = transaction ? 'Editar lançamento' : ({ Receita: 'Nova receita', Despesa: 'Nova despesa', 'Depósito': 'Guardar na caixinha' })[presetType] || 'Novo lançamento';
   if (transaction) {
     for (const [key, value] of Object.entries(transaction)) {
       const field = elements.form.elements.namedItem(key);
@@ -476,6 +611,7 @@ function openForm(transaction = null) {
     const lastDay = new Date(Number(elements.month.value.slice(0, 4)), Number(elements.month.value.slice(5, 7)), 0).getDate();
     elements.form.elements.data.value = `${elements.month.value}-${String(Math.min(new Date().getDate(), lastDay)).padStart(2, '0')}`;
     elements.form.elements.responsavel.value = 'Nós';
+    if (presetType) elements.form.elements.tipo.value = presetType;
   }
   enforceDepositStatus();
   toggleCardField();
