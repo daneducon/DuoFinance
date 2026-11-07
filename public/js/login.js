@@ -3,11 +3,6 @@ import { saveSession, session } from './auth.js';
 if (session()) window.location.replace('/');
 
 const errorElement = document.querySelector('#login-error');
-document.querySelector('#demo-button').addEventListener('click', () => {
-  saveSession('demo', { name: 'Danilo & Talyta', email: 'Modo demonstração' });
-  window.location.assign('/');
-});
-
 initializeGoogle();
 
 async function initializeGoogle() {
