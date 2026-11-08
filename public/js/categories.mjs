@@ -7,7 +7,7 @@ const GROUPS = [
   ['Saúde e bem-estar', ['healthcare', 'pharmacy', 'farmacia', 'gyms', 'academia', 'saude', 'bem-estar', 'pessoal']],
   ['Assinaturas e serviços digitais', ['digital services', 'assinatura', 'streaming', 'software']],
   ['Educação', ['school', 'escola', 'educacao', 'graduacao', 'curso', 'faculdade', 'livros']],
-  ['Lazer e viagens', ['cinema', 'theater', 'concert', 'tickets', 'role', 'lazer', 'viagem', 'travel', 'entretenimento', 'accomodation', 'accommodation', 'hospedagem', 'hotel']],
+  ['Lazer e viagens', ['cinema', 'theater', 'concert', 'tickets', 'role', 'lazer', 'passeio', 'viagem', 'travel', 'entretenimento', 'accomodation', 'accommodation', 'hospedagem', 'hotel']],
   ['Compras', ['shopping', 'clothing', 'roupa', 'electronics', 'eletron', 'office supplies', 'compras']],
   ['Dívidas, taxas e impostos', ['divida', 'emprest', 'bank fees', 'tax on', 'taxa', 'imposto', 'insurance', 'seguro', 'trabalho', 'juros']],
   ['Transferências', ['transfer', 'transferencia', 'pix']],
