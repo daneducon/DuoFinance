@@ -69,7 +69,7 @@ function demoState(month) {
   return {
     ...saved,
     transactions,
-    spendingTransactions: transactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && !saved.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem))),
+    spendingTransactions: saved.transactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && !saved.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem))),
     summary: demoSummary(transactions, saved.configuration.caixinhas, saved.transactions),
     cashFlow: demoCashFlow(saved.transactions, month),
     analysis: demoAnalysis(saved.transactions, month)

@@ -4,7 +4,7 @@ import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, upd
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
-  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {}, connections: [], spending: [],
+  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {}, connections: [], spending: [], analysisMonth: '',
   transactionFilter: 'payable', search: '', analysisPeriod: 3, cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
@@ -50,6 +50,7 @@ document.querySelector('#bill-history-dialog').addEventListener('click', (event)
 document.querySelector('#transaction-search').addEventListener('input', (event) => { state.search = event.target.value; renderTransactions(); });
 document.querySelector('#transaction-filters').addEventListener('click', handleFilter);
 document.querySelector('#analysis-period').addEventListener('click', handleAnalysisPeriod);
+document.querySelector('#trend-chart').addEventListener('click', handleAnalysisBar);
 document.querySelector('#category-chart').addEventListener('click', handleCategoryClick);
 elements.month.addEventListener('change', () => { updateMonthLabel(); load(); });
 document.querySelector('#previous-month').addEventListener('click', () => shiftMonth(-1));
@@ -133,7 +134,6 @@ function render() {
   renderConnections();
   document.querySelector('#balance-note').textContent = balanceMessage(summary.saldoPrevisto);
   renderCashFlow();
-  renderCategoryChart(summary);
   renderBoxes(summary.caixinhas || []);
   renderTransactions();
   renderAnalysis();
@@ -193,20 +193,10 @@ function renderCashFlow() {
   summary.innerHTML = `<div><span>Saldo inicial do mês</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: ${periods}.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
 }
 
-function renderCategoryChart(summary) {
-  const categories = Object.entries(summary.categorias || {}).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]);
-  const total = categories.reduce((sum, [, value]) => sum + value, 0) || 1;
-  elements.chart.hidden = categories.length === 0;
-  elements.chartEmpty.hidden = categories.length > 0;
-  elements.chart.innerHTML = categories.map(([name, value]) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span><span class="bar-track"><span class="bar" style="width:${value / total * 100}%"></span></span></button>`).join('');
-  const expenses = state.transactions.filter((item) => ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
-  document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
-}
-
 function openCategorySheet(name) {
   // Mesmo conjunto usado nos totais da análise: compras de cartão e lançamentos manuais.
   const items = (state.spending || [])
-    .filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && macroCategory(item.categoria) === name)
+    .filter((item) => ['Despesa', 'Estorno', 'Pagamento Fatura'].includes(item.tipo) && item.mesRef === selectedAnalysisMonth() && macroCategory(item.categoria) === name)
     .sort((a, b) => b.valor - a.valor);
   const total = items.reduce((sum, item) => sum + item.valor, 0);
   const sheet = document.querySelector('#action-sheet');
@@ -225,13 +215,21 @@ function shortMonthName(month) {
   return new Intl.DateTimeFormat('pt-BR', { month: 'short' }).format(new Date(`${month}-01T12:00:00`)).replace('.', '');
 }
 
+// Mês escolhido no gráfico de barras. Vazio = mês do seletor principal (último da lista).
+function selectedAnalysisMonth() {
+  return state.analysisMonth || elements.month.value;
+}
+
 function renderAnalysis() {
   const all = state.analysis.months || [];
   const months = all.slice(-(state.analysisPeriod || 3));
   const values = months.map((month) => month.total);
-  const current = all.at(-1)?.total || 0;
-  const previous = all.at(-2);
-  document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(elements.month.value)}`;
+  const selectedIndex = all.findIndex((month) => month.month === selectedAnalysisMonth());
+  const index = selectedIndex >= 0 ? selectedIndex : all.length - 1;
+  const selected = all[index] || { month: elements.month.value, total: 0, categories: {}, responsibles: {} };
+  const previous = all[index - 1];
+  const current = selected.total || 0;
+  document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(selected.month)}`;
   document.querySelector('#analysis-total').textContent = money(current);
   const badge = document.querySelector('#analysis-trend');
   if (previous?.total > 0) {
@@ -244,12 +242,13 @@ function renderAnalysis() {
   }
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
   const maximum = Math.max(...values, 1);
-  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, index) => `<div class="period-bar ${index === months.length - 1 ? 'current' : ''}" title="${monthLabel(month.month)}: ${money(values[index])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[index] / maximum * 100)}%"></span></span><small>${shortMonthName(month.month)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
+  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, position) => `<button type="button" class="period-bar ${month.month === selected.month ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${month.month === selected.month}" title="${monthLabel(month.month)}: ${money(values[position])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[position] / maximum * 100)}%"></span></span><small>${shortMonthName(month.month)}</small></button>`).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
   const filled = values.filter((value) => value > 0);
   const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
   const highestIndex = values.indexOf(Math.max(...values, 0));
   document.querySelector('#trend-metrics').innerHTML = `<div><span>Média dos meses com gasto</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${highestIndex >= 0 && values[highestIndex] > 0 ? `${money(values[highestIndex])} · ${shortMonthName(months[highestIndex].month)}` : '—'}</strong></div>`;
-  const responsibleValues = all.at(-1)?.responsibles || {};
+  renderCategoryChart(selected.categories || {}, selected.month);
+  const responsibleValues = selected.responsibles || {};
   const colors = { Ele: 'var(--green)', Ela: '#e99d7d', Nós: '#5cb8cc' };
   const responsibles = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])].map((name) => [name, Math.max(0, responsibleValues[name] || 0)]);
   const responsibleTotal = responsibles.reduce((sum, [, value]) => sum + value, 0);
@@ -263,6 +262,24 @@ function handleAnalysisPeriod(event) {
   if (!button) return;
   state.analysisPeriod = Number(button.dataset.period);
   renderAnalysis();
+}
+
+function handleAnalysisBar(event) {
+  const bar = event.target.closest('[data-month]');
+  if (!bar) return;
+  state.analysisMonth = bar.dataset.month;
+  renderAnalysis();
+}
+
+// Categorias do mês selecionado, com o mesmo critério dos totais da análise.
+function renderCategoryChart(categoryTotals, month) {
+  const categories = Object.entries(categoryTotals).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]);
+  const total = categories.reduce((sum, [, value]) => sum + value, 0) || 1;
+  elements.chart.hidden = categories.length === 0;
+  elements.chartEmpty.hidden = categories.length > 0;
+  elements.chart.innerHTML = categories.map(([name, value]) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span><span class="bar-track"><span class="bar" style="width:${value / total * 100}%"></span></span></button>`).join('');
+  const expenses = (state.spending || []).filter((item) => item.mesRef === month && ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
+  document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
 
 function boxRing(percent) {
