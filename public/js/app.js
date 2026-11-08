@@ -87,7 +87,8 @@ switchTab(location.hash.slice(1) || 'general', false);
 updateConnectivity();
 load();
 setupReminders();
-setInterval(() => { if (!document.hidden && navigator.onLine) refreshSyncMentor(); }, 30000);
+// Atualiza o mentor a cada 5 minutos, para não estourar a cota de leitura da planilha.
+setInterval(() => { if (!document.hidden && navigator.onLine) refreshSyncMentor(); }, 300000);
 
 async function load() {
   setLoading(true);

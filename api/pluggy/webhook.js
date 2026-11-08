@@ -38,7 +38,8 @@ function verifySecret(req) {
     error.statusCode = 503;
     throw error;
   }
-  const provided = String(req.headers['x-pluggy-secret'] || '').trim();
+  // Webhooks criados pelo Dashboard enviam o segredo na URL (?secret=); os criados pela API, no header.
+  const provided = String(req.headers['x-pluggy-secret'] || req.query?.secret || '').trim();
   if (provided !== expected) {
     const error = new Error('Webhook nao autorizado.');
     error.statusCode = 401;
