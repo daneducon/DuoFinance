@@ -69,6 +69,7 @@ function demoState(month) {
   return {
     ...saved,
     transactions,
+    spendingTransactions: transactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo)),
     summary: demoSummary(transactions, saved.configuration.caixinhas, saved.transactions),
     cashFlow: demoCashFlow(saved.transactions, month),
     analysis: demoAnalysis(saved.transactions, month)
