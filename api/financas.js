@@ -7,7 +7,6 @@ const { withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summar
 const sheets = require('../lib/sheets');
 const { liveBankBalances } = require('../lib/live-balance');
 const { describeConnections } = require('../lib/connections');
-const { isManualCardBill } = require('../lib/budget');
 
 module.exports = async function handler(req, res) {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed(res, ['GET', 'POST']);
@@ -27,22 +26,21 @@ async function getFinances(req, res) {
     error.statusCode = 400;
     throw error;
   }
-  const [allManualTransactions, pluggyBills, cardPurchases, configuration, mentor] = await Promise.all([
+  const [allManualTransactions, pluggyBills, configuration, mentor] = await Promise.all([
     sheets.listAllTransactions(),
     sheets.listPluggyBills(),
-    sheets.listPluggyTransactions(),
     sheets.getConfiguration(),
     sheets.getMentorInsights(month)
   ]);
   const manualTransactions = withoutSupersededCardBills(allManualTransactions, pluggyBills);
   // Gastos pagos por caixinha não entram no fluxo, na conta corrente nem na análise: só mudam o saldo da caixinha.
   const accountingTransactions = withoutBoxExpenses([...manualTransactions, ...pluggyBills], configuration.caixinhas);
-  // Análise de gastos: compras reais dos cartões (PluggyTransacoes) + lançamentos manuais.
-  // Faturas e pagamentos de fatura ficam de fora, para não contar o mesmo gasto duas vezes.
-  const spendingTransactions = withoutBoxExpenses([
-    ...manualTransactions.filter((item) => item.tipo !== 'Pagamento Fatura' && !isManualCardBill(item)),
-    ...cardPurchases
-  ], configuration.caixinhas);
+  // Análise de gastos: só as despesas e estornos lançados manualmente na tela de contas.
+  // Compras importadas da Pluggy, faturas e pagamentos de fatura ficam de fora.
+  const spendingTransactions = withoutBoxExpenses(
+    manualTransactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo)),
+    configuration.caixinhas
+  );
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
   const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
