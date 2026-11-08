@@ -22,13 +22,15 @@ function demoSummary(transactions, boxes, boxTransactions = transactions) {
   const result = { receitas: 0, despesas: 0, saldoPrevisto: 0, saldoAtual: 0, pendente: 0, aReceber: 0, aPagar: 0, categorias: {}, caixinhas: boxes.map((box) => ({ ...box, saldo: 0, progresso: 0 })) };
   for (const item of transactions) {
     const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+    // Gasto pago por caixinha só muda o saldo da caixinha (não entra em receitas nem despesas).
+    const boxExpense = item.tipo === 'Despesa' && boxes.some((box) => sameLabel(box.nome, item.origem));
     if (item.tipo === 'Receita') result.receitas += item.valor;
-    if (item.tipo === 'Despesa') {
+    if (item.tipo === 'Despesa' && !boxExpense) {
       result.despesas += item.valor;
       const category = macroCategory(item.categoria);
       result.categorias[category] = (result.categorias[category] || 0) + item.valor;
     }
-    if (item.status === 'Pendente') {
+    if (item.status === 'Pendente' && !boxExpense) {
       result.pendente += item.valor;
       if (item.tipo === 'Receita') result.aReceber += item.valor;
       if (item.tipo === 'Despesa') result.aPagar += item.valor;
