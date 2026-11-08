@@ -4,7 +4,7 @@ import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, upd
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
-  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {},
+  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {}, connections: [],
   transactionFilter: 'payable', search: '', analysisPeriod: 3, cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
@@ -103,6 +103,7 @@ async function load() {
     state.comparison = data.comparison || null;
     state.analysis = data.analysis || { months: [] };
     state.mentor = data.mentor || {};
+    state.connections = data.connections || [];
     state.cardsData = cardsData;
     state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
     render();
@@ -128,6 +129,7 @@ function render() {
   renderTrend('#expense-trend', summary.despesas, state.comparison?.despesas, 'up-bad');
   renderUpcoming();
   renderHomeHero(summary);
+  renderConnections();
   document.querySelector('#balance-note').textContent = balanceMessage(summary.saldoPrevisto);
   renderCashFlow();
   renderCategoryChart(summary);
@@ -510,6 +512,7 @@ function renderCards() {
   const monthLabel = fullMonthLabel(data.spendingMonth || elements.month.value);
   if (!cards.some((card) => card.id === state.selectedCardId)) state.selectedCardId = cards[0]?.id || 'all';
   document.querySelector('#bank-balance').textContent = money(data.bankBalance || 0);
+  document.querySelector('#bank-balance-updated').textContent = freshnessLabel(data.bankBalanceUpdatedAt);
   document.querySelector('#card-available-total').textContent = cards.length ? money(data.availableLimit || 0) : '—';
   const status = document.querySelector('#pluggy-status');
   status.textContent = data.error || (data.items?.length ? `${data.items.length} instituição(ões) sincronizada(s)` : data.hasConfiguredItems ? 'Toque em sincronizar para a primeira importação.' : 'Configure os Item IDs da Pluggy na Vercel.');
@@ -708,6 +711,37 @@ function renderCeiling(data, budget, monthLabel) {
     <p>${money(budget.consumption || 0)} de ${money(budget.ceiling || 0)} em vencimentos de ${monthLabel}</p>
     <details class="ceiling-details"><summary>Ver vencimentos</summary><div class="ceiling-lines">${rows}</div></details>
   </div>`;
+}
+
+// Ex.: "Atualizado hoje às 10:32" ou "Atualizado em 07/11 às 10:32".
+function freshnessLabel(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const zone = 'America/Sao_Paulo';
+  const day = new Intl.DateTimeFormat('pt-BR', { timeZone: zone, day: '2-digit', month: '2-digit' }).format(date);
+  const today = new Intl.DateTimeFormat('pt-BR', { timeZone: zone, day: '2-digit', month: '2-digit' }).format(new Date());
+  const hour = new Intl.DateTimeFormat('pt-BR', { timeZone: zone, hour: '2-digit', minute: '2-digit' }).format(date);
+  return `Atualizado ${day === today ? 'hoje' : `em ${day}`} às ${hour}`;
+}
+
+// Lista das conexões bancárias. Só aparece se houver conexões; o que precisa de atenção vem primeiro.
+function renderConnections() {
+  const section = document.querySelector('#connections');
+  const connections = state.connections || [];
+  section.hidden = !connections.length;
+  if (!connections.length) return;
+  const attention = connections.filter((item) => item.needsAttention).length;
+  const stale = connections.filter((item) => item.stale).length;
+  document.querySelector('#connections-summary').textContent = attention
+    ? `${attention} precisa${attention > 1 ? 'm' : ''} de atenção`
+    : stale ? `${stale} desatualizada${stale > 1 ? 's' : ''}` : 'Tudo certo';
+  document.querySelector('#connections-list').innerHTML = connections.map((item) => {
+    const tone = item.needsAttention ? 'attention' : item.stale ? 'stale' : '';
+    const name = `${item.institution}${item.holder ? ` · ${item.holder}` : ''}`;
+    const meta = item.message || freshnessLabel(item.lastUpdatedAt);
+    return `<li class="${tone}"><span class="connection-dot ${tone}" aria-hidden="true"></span><div><span class="connection-name">${escapeHtml(name)}</span><span class="connection-meta">${escapeHtml(meta)}</span></div></li>`;
+  }).join('');
 }
 
 function renderHomeHero(summary) {

@@ -6,6 +6,20 @@ const { syncItem } = require('../../lib/pluggy-sync');
 const sheets = require('../../lib/sheets');
 const { triggerSyncMentor } = require('../../lib/mentor-trigger');
 const { secretsMatch } = require('../../lib/secrets');
+const { broadcastPush, pushConfigured } = require('../../lib/push');
+const { connectionHealth } = require('../../lib/connections');
+
+// Eventos em que o usuário precisa agir no banco. Disparam notificação no celular.
+const ALERT_EVENTS = ['item/error', 'item/waiting_user_input', 'item/waiting_user_action'];
+
+async function alertConnection(itemId) {
+  if (!pushConfigured()) return;
+  const saved = (await sheets.listPluggyItems()).find((item) => item.id === itemId);
+  if (!saved) return;
+  const health = connectionHealth(saved);
+  if (!health.needsAttention) return;
+  await broadcastPush({ title: `${saved.institution} precisa de atenção`, body: health.message, url: '/#general' });
+}
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -55,5 +69,6 @@ async function processEvent(event, itemId, body) {
   if (itemId && ['item/created', 'item/updated', 'item/error', 'item/waiting_user_input', 'item/waiting_user_action', 'transactions/created', 'transactions/updated'].includes(event)) {
     await syncItem(itemId);
   }
+  if (itemId && ALERT_EVENTS.includes(event)) await alertConnection(itemId);
   if (['item/created', 'item/updated', 'transactions/created', 'transactions/updated', 'transactions/deleted'].includes(event)) await triggerSyncMentor();
 }
