@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=51">
+  <link rel="stylesheet" href="/css/style.css?v=52">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -75,6 +75,10 @@
         depois.</div>
 
       <section class="tab-view active" data-view="general">
+        <section class="connections" id="connections" aria-label="Conexões bancárias" hidden>
+          <div class="connections-head"><h2>Conexões bancárias</h2><span id="connections-summary"></span></div>
+          <ul class="connections-list" id="connections-list"></ul>
+        </section>
         <section class="home-hero" aria-label="Saldo previsto">
           <p class="home-label">Saldo previsto do mês</p>
           <div class="home-balance" id="forecast-balance">R$ 0,00</div>
@@ -167,7 +171,7 @@
         <div id="selected-card-detail"></div>
         <div id="ceiling-panel"></div>
         <section class="cards-summary" aria-label="Contas e limites">
-          <div><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong></div>
+          <div><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong><small class="balance-updated" id="bank-balance-updated"></small></div>
           <div><span>Limite disponível</span><strong id="card-available-total">R$ 0,00</strong></div>
         </section>
         <article class="panel card-expenses-panel">
@@ -283,7 +287,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=51"></script>
+  <script type="module" src="/js/app.js?v=52"></script>
 </body>
 
 </html>

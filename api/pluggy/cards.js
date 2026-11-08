@@ -6,6 +6,8 @@ const { nextMonth } = require('../../lib/finance');
 const { getCardBudget } = require('../../lib/budget-service');
 const { isManualCardBill } = require('../../lib/budget');
 const sheets = require('../../lib/sheets');
+const { liveBankBalances } = require('../../lib/live-balance');
+const { describeConnections } = require('../../lib/connections');
 
 module.exports = async function handler(req, res) {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed(res, ['GET', 'POST']);
@@ -34,7 +36,10 @@ module.exports = async function handler(req, res) {
     const cards = accounts.filter((account) => account.type === 'CREDIT' && account.subtype === 'CREDIT_CARD').map((account) => ({
       ...account, institution: institutions.get(account.itemId)?.institution || 'Instituicao conectada', imageUrl: institutions.get(account.itemId)?.imageUrl || '', budget: allocations.get(account.id)
     }));
-    const bankBalance = accounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
+    const live = await liveBankBalances(accounts);
+    const bankBalance = live.total;
+    const bankBalanceUpdatedAt = live.updatedAt;
+    const connections = describeConnections(items);
     const availableLimit = cards.reduce((sum, card) => sum + (card.availableLimit || 0), 0);
     // Histórico completo por cartão, para o gráfico de faturas sem trocar de mês.
     const billHistory = Object.fromEntries(cards.map((card) => [card.id, allBills
@@ -43,7 +48,7 @@ module.exports = async function handler(req, res) {
       .sort((a, b) => a.mesRef.localeCompare(b.mesRef))]));
     send(res, 200, {
       configured: Boolean(process.env.PLUGGY_CLIENT_ID && process.env.PLUGGY_CLIENT_SECRET),
-      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, nextBills, manualBills, billHistory, bankBalance, availableLimit, budget: budgetData.budget, spendingMonth: month, paymentMonth
+      hasConfiguredItems: Boolean(process.env.PLUGGY_ITEM_IDS?.trim()), items, cards, transactions, bills, nextBills, manualBills, billHistory, bankBalance, bankBalanceUpdatedAt, connections, availableLimit, budget: budgetData.budget, spendingMonth: month, paymentMonth
     });
   } catch (error) {
     errorResponse(res, error);

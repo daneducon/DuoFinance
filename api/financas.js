@@ -5,6 +5,8 @@ const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
 const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
 const sheets = require('../lib/sheets');
+const { liveBankBalances } = require('../lib/live-balance');
+const { describeConnections } = require('../lib/connections');
 
 module.exports = async function handler(req, res) {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed(res, ['GET', 'POST']);
@@ -45,11 +47,16 @@ async function getFinances(req, res) {
   summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month), history: boxHistory(manualTransactions, box.nome) }));
   summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
-  const pluggyAccounts = await sheets.listPluggyAccounts();
+  const [pluggyAccounts, pluggyItems] = await Promise.all([sheets.listPluggyAccounts(), sheets.listPluggyItems()]);
   const hasBank = pluggyAccounts.some((account) => account.type === 'BANK');
-  const bankBalance = pluggyAccounts.filter((account) => account.type === 'BANK').reduce((sum, account) => sum + account.balance, 0);
+  // Saldo do banco no momento da consulta; cai para o último sincronizado se o banco não responder.
+  const live = await liveBankBalances(pluggyAccounts);
+  const bankBalance = live.total;
   const anchorBalance = hasBank ? bankBalance : summary.saldoAtual;
   send(res, 200, {
+    bankBalance,
+    bankBalanceUpdatedAt: live.updatedAt,
+    connections: describeConnections(pluggyItems),
     comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
