@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
+const { withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 const { liveBankBalances } = require('../lib/live-balance');
 const { describeConnections } = require('../lib/connections');
@@ -33,7 +33,8 @@ async function getFinances(req, res) {
     sheets.getMentorInsights(month)
   ]);
   const manualTransactions = withoutSupersededCardBills(allManualTransactions, pluggyBills);
-  const accountingTransactions = [...manualTransactions, ...pluggyBills];
+  // Gastos pagos por caixinha não entram no fluxo, na conta corrente nem na análise: só mudam o saldo da caixinha.
+  const accountingTransactions = withoutBoxExpenses([...manualTransactions, ...pluggyBills], configuration.caixinhas);
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
   const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
@@ -45,7 +46,7 @@ async function getFinances(req, res) {
   ], configuration.caixinhas, manualTransactions);
   const comparison = { month: previousMonth, receitas: previousSummary.receitas, despesas: previousSummary.despesas };
   summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month), history: boxHistory(manualTransactions, box.nome) }));
-  summary.aPagar = manualTransactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
+  summary.aPagar = withoutBoxExpenses(manualTransactions, configuration.caixinhas).filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
     + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   const [pluggyAccounts, pluggyItems] = await Promise.all([sheets.listPluggyAccounts(), sheets.listPluggyItems()]);
   const hasBank = pluggyAccounts.some((account) => account.type === 'BANK');
@@ -56,14 +57,14 @@ async function getFinances(req, res) {
   send(res, 200, {
     bankBalance,
     bankBalanceUpdatedAt: live.updatedAt,
-    connections: describeConnections(pluggyItems),
+    connections: describeConnections(pluggyItems, Date.now(), pluggyAccounts),
     comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
     mentor,
     summary,
-    cashFlow: calculateCashFlow([...manualTransactions, ...pluggyBills], month),
-    cashCycles: { ...calculateCashCycles([...manualTransactions, ...pluggyBills], month, { today: todayIso() }), freeUntil: freeUntilNextIncome([...manualTransactions, ...pluggyBills], anchorBalance, todayIso()) },
+    cashFlow: calculateCashFlow(accountingTransactions, month),
+    cashCycles: { ...calculateCashCycles(accountingTransactions, month, { today: todayIso() }), freeUntil: freeUntilNextIncome(accountingTransactions, anchorBalance, todayIso()) },
     analysis: buildAnalysis(accountingTransactions, month, 12)
   });
 }

@@ -31,3 +31,22 @@ test('lista coloca conexões com atenção no topo', () => {
   ], now);
   assert.equal(list[0].id, 'b');
 });
+
+const { institutionName } = require('../lib/connections');
+
+test('conector genérico usa o nome do banco nas contas', () => {
+  const accounts = [
+    { itemId: 'a', type: 'CREDIT', name: 'ultraviolet-black' },
+    { itemId: 'a', type: 'BANK', name: 'Nu Pagamentos S.A. - Instituição de Pagamento' }
+  ];
+  assert.equal(institutionName({ id: 'a', institution: 'MeuPluggy' }, accounts), 'Nu Pagamentos');
+});
+
+test('conector com nome real é mantido', () => {
+  assert.equal(institutionName({ id: 'b', institution: 'Itaú' }, []), 'Itaú');
+});
+
+test('itau em minúsculas vira Itau com inicial maiúscula', () => {
+  const accounts = [{ itemId: 'c', type: 'BANK', name: 'itau' }];
+  assert.equal(institutionName({ id: 'c', institution: 'MeuPluggy' }, accounts), 'Itau');
+});

@@ -445,7 +445,8 @@ function checkRow(item, today) {
   const overdue = !paid && item.data < today;
   const when = paid ? `${positive ? 'Recebido' : 'Pago'} ${shortDate(item.data)}` : `${overdue ? 'Venceu' : positive ? 'Entra' : 'Vence'} ${shortDate(item.data)}`;
   const tag = bill ? (item.estimada ? ' · estimativa' : item.ajustada ? ' · ajustada' : '') : '';
-  const meta = `${when}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}${tag}`;
+  const fromBox = item.tipo === 'Despesa' && state.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem));
+  const meta = `${when}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}${item.cartao ? ` · ${escapeHtml(item.cartao)}` : ''}${fromBox ? ` · caixinha ${escapeHtml(item.origem)}` : ''}${tag}`;
   const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
   const sign = deposit ? '' : positive ? '+ ' : '− ';
   const label = `${paid ? 'Desmarcar' : 'Marcar'} ${escapeHtml(item.descricao)} como ${positive ? 'recebido' : 'pago'}`;
@@ -1063,10 +1064,12 @@ function calculateSummary() {
       return;
     }
     const effect = accountEffect(item);
+    // Gasto pago por caixinha só muda o saldo da caixinha: não entra em receitas, despesas nem a pagar.
+    const boxExpense = item.tipo === 'Despesa' && state.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem));
     if (item.tipo === 'Receita') result.receitas += item.valor;
-    if (item.tipo === 'Despesa') { result.despesas += item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor; }
+    if (item.tipo === 'Despesa' && !boxExpense) { result.despesas += item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) + item.valor; }
     if (item.tipo === 'Estorno') { result.despesas -= item.valor; result.categorias[item.categoria] = (result.categorias[item.categoria] || 0) - item.valor; }
-    if (item.status === 'Pendente') {
+    if (item.status === 'Pendente' && !boxExpense) {
       result.pendente += item.valor;
       if (item.tipo === 'Receita') result.aReceber += item.valor;
       if (item.tipo === 'Despesa' && item.fonte !== 'pluggy') result.aPagar += item.valor;
