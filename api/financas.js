@@ -67,7 +67,7 @@ async function getFinances(req, res) {
     connections: describeConnections(pluggyItems, Date.now(), pluggyAccounts),
     comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
-    spendingTransactions: spendingTransactions.filter((item) => item.mesRef === month),
+    spendingTransactions,
     configuration,
     mentor,
     summary,
