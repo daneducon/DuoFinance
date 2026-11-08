@@ -5,6 +5,7 @@ const { send, methodNotAllowed, errorResponse } = require('../../lib/http');
 const { syncItem } = require('../../lib/pluggy-sync');
 const sheets = require('../../lib/sheets');
 const { triggerSyncMentor } = require('../../lib/mentor-trigger');
+const { secretsMatch } = require('../../lib/secrets');
 
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return methodNotAllowed(res, ['POST']);
@@ -40,7 +41,7 @@ function verifySecret(req) {
   }
   // Webhooks criados pelo Dashboard enviam o segredo na URL (?secret=); os criados pela API, no header.
   const provided = String(req.headers['x-pluggy-secret'] || req.query?.secret || '').trim();
-  if (provided !== expected) {
+  if (!secretsMatch(provided, expected)) {
     const error = new Error('Webhook nao autorizado.');
     error.statusCode = 401;
     throw error;
