@@ -1,6 +1,8 @@
 import { session, clearSession } from './auth.js';
 import { cacheGet, cacheSet, queueAdd, queueAll, queueDelete } from './storage.js';
 import { demoData } from './demo.js';
+import { macroCategory, MACRO_CATEGORIES } from './categories.mjs';
+export { macroCategory, MACRO_CATEGORIES };
 
 async function request(path, options = {}) {
   const current = session();
@@ -60,16 +62,6 @@ function sameLabel(left, right) {
   return String(left || '').trim().toLocaleLowerCase('pt-BR') === String(right || '').trim().toLocaleLowerCase('pt-BR');
 }
 
-export function macroCategory(value) {
-  const label = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const has = (terms) => terms.some((term) => label.includes(term));
-  if (has(['accommodation', 'housing', 'houseware', 'telecommunication', 'moradia', 'aluguel', 'condominio', 'energia', 'internet', 'agua', 'servicos domesticos'])) return 'Moradia e Contas';
-  if (has(['eating out', 'food and drinks', 'food delivery', 'groceries', 'alimentacao', 'mercado', 'restaurante', 'comida', 'delivery'])) return 'Alimentação';
-  if (has(['gas station', 'parking', 'taxi', 'ride-hailing', 'tolls', 'vehicle', 'tickets', 'transporte', 'combustivel', 'uber', 'onibus', 'pedagio'])) return 'Transporte';
-  if (has(['healthcare', 'pharmacy', 'saude', 'farmacia', 'bem-estar', 'pessoal'])) return 'Saúde e Bem-estar';
-  if (has(['cinema', 'theater', 'concert', 'clothing', 'digital services', 'electronics', 'office supplies', 'shopping', 'lazer', 'roupa', 'eletronico', 'assinatura', 'viagem'])) return 'Compras e Lazer';
-  return 'Educação e Financeiro';
-}
 
 function demoState(month) {
   const saved = JSON.parse(localStorage.getItem('duofinance_demo_data') || 'null') || demoData();
@@ -112,7 +104,7 @@ function demoAnalysis(transactions, selectedMonth) {
     const group = (field) => expenses.reduce((result, item) => {
       const key = field === 'categoria' ? macroCategory(item[field]) : item[field];
       return { ...result, [key]: (result[key] || 0) + item.valor };
-    }, field === 'categoria' ? Object.fromEntries(['Moradia e Contas', 'Alimentação', 'Transporte', 'Saúde e Bem-estar', 'Compras e Lazer', 'Educação e Financeiro'].map((category) => [category, 0])) : {});
+    }, field === 'categoria' ? Object.fromEntries(MACRO_CATEGORIES.map((category) => [category, 0])) : {});
     return { month, total: expenses.reduce((sum, item) => sum + item.valor, 0), categories: group('categoria'), responsibles: group('responsavel') };
   });
   return { months };
