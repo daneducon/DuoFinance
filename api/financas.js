@@ -57,7 +57,7 @@ async function getFinances(req, res) {
   send(res, 200, {
     bankBalance,
     bankBalanceUpdatedAt: live.updatedAt,
-    connections: describeConnections(pluggyItems),
+    connections: describeConnections(pluggyItems, Date.now(), pluggyAccounts),
     comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
     configuration,
