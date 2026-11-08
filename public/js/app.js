@@ -4,7 +4,7 @@ import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, upd
 const currentSession = requireSession();
 const state = {
   transactions: [], configuration: { categorias: [], responsaveis: [], caixinhas: [] },
-  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {}, connections: [],
+  summary: null, cashFlow: null, analysis: { months: [] }, mentor: {}, boxBase: {}, connections: [], spending: [],
   transactionFilter: 'payable', search: '', analysisPeriod: 3, cardsData: { items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }, selectedCardId: 'all'
 };
 const elements = {
@@ -104,6 +104,7 @@ async function load() {
     state.analysis = data.analysis || { months: [] };
     state.mentor = data.mentor || {};
     state.connections = data.connections || [];
+    state.spending = data.spendingTransactions || [];
     state.cardsData = cardsData;
     state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
     render();
@@ -203,8 +204,9 @@ function renderCategoryChart(summary) {
 }
 
 function openCategorySheet(name) {
-  const items = state.transactions
-    .filter((item) => ['Despesa', 'Pagamento Fatura'].includes(item.tipo) && macroCategory(item.categoria) === name)
+  // Mesmo conjunto usado nos totais da análise: compras de cartão e lançamentos manuais.
+  const items = (state.spending || [])
+    .filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && macroCategory(item.categoria) === name)
     .sort((a, b) => b.valor - a.valor);
   const total = items.reduce((sum, item) => sum + item.valor, 0);
   const sheet = document.querySelector('#action-sheet');

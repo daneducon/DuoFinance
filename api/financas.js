@@ -35,6 +35,12 @@ async function getFinances(req, res) {
   const manualTransactions = withoutSupersededCardBills(allManualTransactions, pluggyBills);
   // Gastos pagos por caixinha não entram no fluxo, na conta corrente nem na análise: só mudam o saldo da caixinha.
   const accountingTransactions = withoutBoxExpenses([...manualTransactions, ...pluggyBills], configuration.caixinhas);
+  // Análise de gastos: só as despesas e estornos lançados manualmente na tela de contas.
+  // Compras importadas da Pluggy, faturas e pagamentos de fatura ficam de fora.
+  const spendingTransactions = withoutBoxExpenses(
+    manualTransactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo)),
+    configuration.caixinhas
+  );
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
   const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
@@ -60,12 +66,13 @@ async function getFinances(req, res) {
     connections: describeConnections(pluggyItems, Date.now(), pluggyAccounts),
     comparison,
     transactions: [...manualMonthTransactions, ...monthBills],
+    spendingTransactions: spendingTransactions.filter((item) => item.mesRef === month),
     configuration,
     mentor,
     summary,
     cashFlow: calculateCashFlow(accountingTransactions, month),
     cashCycles: { ...calculateCashCycles(accountingTransactions, month, { today: todayIso() }), freeUntil: freeUntilNextIncome(accountingTransactions, anchorBalance, todayIso()) },
-    analysis: buildAnalysis(accountingTransactions, month, 12)
+    analysis: buildAnalysis(spendingTransactions, month, 12)
   });
 }
 
