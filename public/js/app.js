@@ -206,7 +206,7 @@ function renderCategoryChart(summary) {
 function openCategorySheet(name) {
   // Mesmo conjunto usado nos totais da análise: compras de cartão e lançamentos manuais.
   const items = (state.spending || [])
-    .filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && macroCategory(item.categoria) === name)
+    .filter((item) => ['Despesa', 'Estorno', 'Pagamento Fatura'].includes(item.tipo) && macroCategory(item.categoria) === name)
     .sort((a, b) => b.valor - a.valor);
   const total = items.reduce((sum, item) => sum + item.valor, 0);
   const sheet = document.querySelector('#action-sheet');
