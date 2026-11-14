@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
+import { markFreshReadDone, getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
 
 const currentSession = requireSession();
 const state = {
@@ -121,6 +121,7 @@ async function load() {
     state.cardsData = cardsData;
     state.boxBase = calculateBoxBase(state.summary.caixinhas || [], state.transactions);
     render();
+    markFreshReadDone();
     if (data.offline) notify('Exibindo os últimos dados salvos.');
   } catch (error) {
     notify(error.message, true);

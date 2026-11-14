@@ -9,7 +9,11 @@ const sheets = require('../../lib/sheets');
 const { liveBankBalances } = require('../../lib/live-balance');
 const { describeConnections, institutionName } = require('../../lib/connections');
 
-module.exports = async function handler(req, res) {
+module.exports = function handler(req, res) {
+  return sheets.withFreshReads(req.query?.fresh === '1', () => run(req, res));
+};
+
+async function run(req, res) {
   if (!['GET', 'POST'].includes(req.method)) return methodNotAllowed(res, ['GET', 'POST']);
   try {
     await verifyRequest(req);
