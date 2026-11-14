@@ -1,6 +1,8 @@
 import { session, clearSession } from './auth.js';
 import { cacheGet, cacheSet, queueAdd, queueAll, queueDelete } from './storage.js';
 import { demoData } from './demo.js';
+import { macroCategory, MACRO_CATEGORIES } from './categories.mjs';
+export { macroCategory, MACRO_CATEGORIES };
 
 async function request(path, options = {}) {
   const current = session();
@@ -22,13 +24,15 @@ function demoSummary(transactions, boxes, boxTransactions = transactions) {
   const result = { receitas: 0, despesas: 0, saldoPrevisto: 0, saldoAtual: 0, pendente: 0, aReceber: 0, aPagar: 0, categorias: {}, caixinhas: boxes.map((box) => ({ ...box, saldo: 0, progresso: 0 })) };
   for (const item of transactions) {
     const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
+    // Gasto pago por caixinha só muda o saldo da caixinha (não entra em receitas nem despesas).
+    const boxExpense = item.tipo === 'Despesa' && boxes.some((box) => sameLabel(box.nome, item.origem));
     if (item.tipo === 'Receita') result.receitas += item.valor;
-    if (item.tipo === 'Despesa') {
+    if (item.tipo === 'Despesa' && !boxExpense) {
       result.despesas += item.valor;
       const category = macroCategory(item.categoria);
       result.categorias[category] = (result.categorias[category] || 0) + item.valor;
     }
-    if (item.status === 'Pendente') {
+    if (item.status === 'Pendente' && !boxExpense) {
       result.pendente += item.valor;
       if (item.tipo === 'Receita') result.aReceber += item.valor;
       if (item.tipo === 'Despesa') result.aPagar += item.valor;
@@ -58,16 +62,6 @@ function sameLabel(left, right) {
   return String(left || '').trim().toLocaleLowerCase('pt-BR') === String(right || '').trim().toLocaleLowerCase('pt-BR');
 }
 
-export function macroCategory(value) {
-  const label = String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-  const has = (terms) => terms.some((term) => label.includes(term));
-  if (has(['accommodation', 'housing', 'houseware', 'telecommunication', 'moradia', 'aluguel', 'condominio', 'energia', 'internet', 'agua', 'servicos domesticos'])) return 'Moradia e Contas';
-  if (has(['eating out', 'food and drinks', 'food delivery', 'groceries', 'alimentacao', 'mercado', 'restaurante', 'comida', 'delivery'])) return 'Alimentação';
-  if (has(['gas station', 'parking', 'taxi', 'ride-hailing', 'tolls', 'vehicle', 'tickets', 'transporte', 'combustivel', 'uber', 'onibus', 'pedagio'])) return 'Transporte';
-  if (has(['healthcare', 'pharmacy', 'saude', 'farmacia', 'bem-estar', 'pessoal'])) return 'Saúde e Bem-estar';
-  if (has(['cinema', 'theater', 'concert', 'clothing', 'digital services', 'electronics', 'office supplies', 'shopping', 'lazer', 'roupa', 'eletronico', 'assinatura', 'viagem'])) return 'Compras e Lazer';
-  return 'Educação e Financeiro';
-}
 
 function demoState(month) {
   const saved = JSON.parse(localStorage.getItem('duofinance_demo_data') || 'null') || demoData();
@@ -75,6 +69,7 @@ function demoState(month) {
   return {
     ...saved,
     transactions,
+    spendingTransactions: saved.transactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && !saved.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem))),
     summary: demoSummary(transactions, saved.configuration.caixinhas, saved.transactions),
     cashFlow: demoCashFlow(saved.transactions, month),
     analysis: demoAnalysis(saved.transactions, month)
@@ -110,7 +105,7 @@ function demoAnalysis(transactions, selectedMonth) {
     const group = (field) => expenses.reduce((result, item) => {
       const key = field === 'categoria' ? macroCategory(item[field]) : item[field];
       return { ...result, [key]: (result[key] || 0) + item.valor };
-    }, field === 'categoria' ? Object.fromEntries(['Moradia e Contas', 'Alimentação', 'Transporte', 'Saúde e Bem-estar', 'Compras e Lazer', 'Educação e Financeiro'].map((category) => [category, 0])) : {});
+    }, field === 'categoria' ? Object.fromEntries(MACRO_CATEGORIES.map((category) => [category, 0])) : {});
     return { month, total: expenses.reduce((sum, item) => sum + item.valor, 0), categories: group('categoria'), responsibles: group('responsavel') };
   });
   return { months };

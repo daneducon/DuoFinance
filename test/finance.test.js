@@ -85,7 +85,7 @@ test('agrupa despesas dos ultimos tres meses para analise', () => {
     { tipo: 'Despesa', valor: 250, mesRef: '2026-09', categoria: 'Moradia', responsavel: 'Ele' }
   ], '2026-09');
   assert.deepEqual(analysis.months.map((month) => month.month), ['2026-07', '2026-08', '2026-09']);
-  assert.equal(analysis.months[2].categories['Moradia e Contas'], 250);
+  assert.equal(analysis.months[2].categories['Moradia e contas'], 250);
 });
 
 test('separa valores mensais a receber e a pagar', () => {
@@ -208,10 +208,10 @@ test('agrupa categorias da Pluggy e manuais em seis macros', () => {
   assert.equal(macroCategory('Groceries'), 'Alimentação');
   assert.equal(macroCategory('Food delivery'), 'Alimentação');
   assert.equal(macroCategory('Gas stations'), 'Transporte');
-  assert.equal(macroCategory('Pharmacy'), 'Saúde e Bem-estar');
-  assert.equal(macroCategory('Digital services'), 'Compras e Lazer');
-  assert.equal(macroCategory('Moradia'), 'Moradia e Contas');
-  assert.equal(macroCategory('Dívidas & Empréstimos'), 'Educação e Financeiro');
+  assert.equal(macroCategory('Pharmacy'), 'Saúde e bem-estar');
+  assert.equal(macroCategory('Digital services'), 'Assinaturas e serviços digitais');
+  assert.equal(macroCategory('Moradia'), 'Moradia e contas');
+  assert.equal(macroCategory('Dívidas & Empréstimos'), 'Dívidas, taxas e impostos');
 });
 
 test('analise sempre oferece somente as seis categorias macros', () => {
@@ -219,7 +219,7 @@ test('analise sempre oferece somente as seis categorias macros', () => {
     { tipo: 'Despesa', valor: 50, mesRef: '2026-09', categoria: 'Groceries', responsavel: 'Ela' },
     { tipo: 'Despesa', valor: 100, mesRef: '2026-09', categoria: 'Food delivery', responsavel: 'Ele' }
   ], '2026-09');
-  assert.equal(Object.keys(analysis.months[2].categories).length, 6);
+  assert.equal(Object.keys(analysis.months[2].categories).length, require('../lib/categories').MACRO_CATEGORIES.length);
   assert.equal(analysis.months[2].categories['Alimentação'], 150);
   assert.equal(analysis.months[2].responsibles.Ela, 50);
 });
