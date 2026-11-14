@@ -418,6 +418,19 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .urgent-bill.overdue .urgent-info .urgent-label{color:#93402f}
 .urgent-bill .income-value{color:#0c6b40}
 .urgent-bill .expense-value{color:#a03c2b}
+
+/* Sprint 5: barras duplas receita x despesa no comparativo de 3 meses */
+.period-tracks{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:100%}
+.period-tracks .period-fill{width:min(12px,60%)}
+.period-fill.income{background:var(--green)}
+.chart-legend{display:flex;justify-content:flex-end;gap:14px;margin:0 2px 8px;color:var(--muted);font-size:10px}
+.chart-legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.chart-legend .lg-income{background:var(--green)}
+.chart-legend .lg-expense{background:#c05a47}
+.period-bars.duo .period-fill{background:#c05a47}
+.period-bars.duo .period-fill.income{background:var(--green)}
+.period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
+.period-bars.duo .period-bar.current .period-fill.income{background:var(--green)}
 .add-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:14px;padding:14px;border:1px dashed #2c4a3d;border-radius:14px;background:transparent;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;transition:.2s ease}
 .add-ghost:hover,.add-ghost:focus-visible{border-color:var(--green);color:var(--green);outline:0}
 .add-ghost span{font-size:18px;line-height:1}

@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=45';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
 
 const currentSession = requireSession();
 const state = {
@@ -245,12 +245,21 @@ function renderAnalysis() {
   document.querySelector('#analysis-total').textContent = money(current);
   const change = previous?.total > 0 ? Math.round((current - previous.total) / previous.total * 100) : null;
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
-  const maximum = Math.max(...values, 1);
-  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, position) => {
+  const maximum = Math.max(...values, ...months.map((month) => month.receitas || 0), 1);
+  // Com 3 meses de histórico dá para comparar receita x despesa lado a lado;
+  // em 6/12 meses a barra única de gastos volta (barras ficariam miúdas demais).
+  const duo = (state.analysisPeriod || 3) === 3 && months.every((month) => Number.isFinite(month.receitas));
+  const chartLegend = duo ? '<div class="chart-legend"><span><i class="lg-income"></i>Receitas</span><span><i class="lg-expense"></i>Despesas</span></div>' : '';
+  const height = (value) => duo ? (value > 0 ? Math.max(3, value / maximum * 100) : 0) : Math.max(3, value / maximum * 100);
+  const bars = months.map((month, position) => {
     const isCurrent = month.month === selected.month;
     const bubble = isCurrent && change !== null ? `<span class="trend-bubble ${change <= 0 ? 'good' : 'bad'}">${change > 0 ? '+' : ''}${change}%</span>` : '';
-    return `<button type="button" class="period-bar ${isCurrent ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${isCurrent}" title="${monthLabel(month.month)}: ${money(values[position])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[position] / maximum * 100)}%">${bubble}</span></span><small>${shortMonthName(month.month)}</small></button>`;
-  }).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
+    const tracks = duo
+      ? `<span class="period-tracks"><span class="period-track"><span class="period-fill income" style="height:${height(month.receitas)}%" title="Receitas: ${money(month.receitas)}"></span></span><span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span></span>`
+      : `<span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span>`;
+    return `<button type="button" class="period-bar ${isCurrent ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${isCurrent}" title="${monthLabel(month.month)}: ${money(month.total)}">${tracks}<small>${shortMonthName(month.month)}</small></button>`;
+  }).join('');
+  document.querySelector('#trend-chart').innerHTML = months.length ? `${chartLegend}<div class="period-bars ${duo ? 'duo' : ''}">${bars}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
   const filled = values.filter((value) => value > 0);
   const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
   const highestIndex = values.indexOf(Math.max(...values, 0));

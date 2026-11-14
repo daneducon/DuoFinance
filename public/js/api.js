@@ -115,11 +115,12 @@ function demoAnalysis(transactions, selectedMonth) {
     const date = new Date(Date.UTC(year, monthNumber - 3 + index, 1));
     const month = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
     const expenses = transactions.filter((item) => item.mesRef === month && item.tipo === 'Despesa');
+    const receitas = transactions.filter((item) => item.mesRef === month && item.tipo === 'Receita');
     const group = (field) => expenses.reduce((result, item) => {
       const key = field === 'categoria' ? macroCategory(item[field]) : item[field];
       return { ...result, [key]: (result[key] || 0) + item.valor };
     }, field === 'categoria' ? Object.fromEntries(MACRO_CATEGORIES.map((category) => [category, 0])) : {});
-    return { month, total: expenses.reduce((sum, item) => sum + item.valor, 0), categories: group('categoria'), responsibles: group('responsavel') };
+    return { month, total: expenses.reduce((sum, item) => sum + item.valor, 0), receitas: receitas.reduce((sum, item) => sum + item.valor, 0), categories: group('categoria'), responsibles: group('responsavel') };
   });
   return { months };
 }

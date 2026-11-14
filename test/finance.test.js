@@ -88,6 +88,18 @@ test('agrupa despesas dos ultimos tres meses para analise', () => {
   assert.equal(analysis.months[2].categories['Moradia e contas'], 250);
 });
 
+test('analise inclui receitas de cada mes para o grafico comparativo', () => {
+  const analysis = buildAnalysis([
+    { tipo: 'Receita', valor: 3000, mesRef: '2026-08', responsavel: 'Ele' },
+    { tipo: 'Receita', valor: 1500, mesRef: '2026-08', responsavel: 'Ela' },
+    { tipo: 'Despesa', valor: 400, mesRef: '2026-08', categoria: 'Lazer' },
+    { tipo: 'Receita', valor: 4400, mesRef: '2026-09', responsavel: 'Ele' }
+  ], '2026-09');
+  assert.equal(analysis.months[1].receitas, 4500);
+  assert.equal(analysis.months[2].receitas, 4400);
+  assert.equal(analysis.months[0].receitas, 0);
+});
+
 test('separa valores mensais a receber e a pagar', () => {
   const pending = [
     { tipo: 'Receita', valor: 900, status: 'Pendente', origem: 'Conta Corrente', categoria: 'Renda' },
