@@ -238,12 +238,13 @@ function renderAnalysis() {
   const values = months.map((month) => month.total);
   const selectedIndex = all.findIndex((month) => month.month === selectedAnalysisMonth());
   const index = selectedIndex >= 0 ? selectedIndex : all.length - 1;
-  const selected = all[index] || { month: elements.month.value, total: 0, categories: {}, responsibles: {} };
+  const selected = all[index] || { month: elements.month.value, total: 0, receitas: 0, categories: {}, responsibles: {} };
   const previous = all[index - 1];
   const current = selected.total || 0;
   document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(selected.month)}`;
   document.querySelector('#analysis-total').textContent = money(current);
   const change = previous?.total > 0 ? Math.round((current - previous.total) / previous.total * 100) : null;
+  const incomeChange = previous?.receitas > 0 ? Math.round(((selected.receitas || 0) - previous.receitas) / previous.receitas * 100) : null;
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
   const maximum = Math.max(...values, ...months.map((month) => month.receitas || 0), 1);
   // Comparativo receita x despesa em todos os períodos; nos mais longos as
@@ -256,8 +257,10 @@ function renderAnalysis() {
   const bars = months.map((month, position) => {
     const isCurrent = month.month === selected.month;
     const bubble = isCurrent && change !== null ? `<span class="trend-bubble ${change <= 0 ? 'good' : 'bad'}">${change > 0 ? '+' : ''}${change}%</span>` : '';
+    // Para receitas a leitura inverte: alta é verde, queda é vermelha.
+    const incomeBubble = isCurrent && incomeChange !== null ? `<span class="trend-bubble income-bubble ${incomeChange > 0 ? 'good' : 'bad'}">${incomeChange > 0 ? '+' : ''}${incomeChange}%</span>` : '';
     const tracks = duo
-      ? `<span class="period-tracks"><span class="period-track"><span class="period-fill income" style="height:${height(month.receitas)}%" title="Receitas: ${money(month.receitas)}"></span></span><span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span></span>`
+      ? `<span class="period-tracks"><span class="period-track"><span class="period-fill income" style="height:${height(month.receitas)}%" title="Receitas: ${money(month.receitas)}">${incomeBubble}</span></span><span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span></span>`
       : `<span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span>`;
     return `<button type="button" class="period-bar ${isCurrent ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${isCurrent}" title="${monthLabel(month.month)}: ${money(month.total)}">${tracks}<small>${shortMonthName(month.month)}</small></button>`;
   }).join('');

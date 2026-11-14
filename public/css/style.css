@@ -428,6 +428,8 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .chart-legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:-1px}
 .chart-legend .lg-income{background:var(--green)}
 .chart-legend .lg-expense{background:#c05a47}
+/* Balão da receita fica um degrau acima do de despesa para não colidirem quando as barras empatam. */
+.trend-bubble.income-bubble{bottom:calc(100% + 24px)}
 .period-bars.duo .period-fill{background:#c05a47}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
