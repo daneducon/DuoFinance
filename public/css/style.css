@@ -432,6 +432,10 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
 .period-bars.duo .period-bar.current .period-fill.income{background:var(--green)}
+.period-bars.six .period-tracks .period-track{flex:0 0 11px}
+.period-bars.twelve{gap:4px}
+.period-bars.twelve .period-tracks{gap:2px}
+.period-bars.twelve .period-tracks .period-track{flex:0 0 8px}
 .add-ghost{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:14px;padding:14px;border:1px dashed #2c4a3d;border-radius:14px;background:transparent;color:var(--muted);font-weight:600;font-size:13px;cursor:pointer;transition:.2s ease}
 .add-ghost:hover,.add-ghost:focus-visible{border-color:var(--green);color:var(--green);outline:0}
 .add-ghost span{font-size:18px;line-height:1}

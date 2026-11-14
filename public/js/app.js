@@ -246,9 +246,11 @@ function renderAnalysis() {
   const change = previous?.total > 0 ? Math.round((current - previous.total) / previous.total * 100) : null;
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
   const maximum = Math.max(...values, ...months.map((month) => month.receitas || 0), 1);
-  // Com 3 meses de histórico dá para comparar receita x despesa lado a lado;
-  // em 6/12 meses a barra única de gastos volta (barras ficariam miúdas demais).
-  const duo = (state.analysisPeriod || 3) === 3 && months.every((month) => Number.isFinite(month.receitas));
+  // Comparativo receita x despesa em todos os períodos; nos mais longos as
+  // barras ficam mais finas para caber (6 meses: 11px, 12 meses: 8px).
+  const period = state.analysisPeriod || 3;
+  const duo = months.every((month) => Number.isFinite(month.receitas));
+  const periodClass = period === 6 ? 'six' : period === 12 ? 'twelve' : '';
   const chartLegend = duo ? '<div class="chart-legend"><span><i class="lg-income"></i>Receitas</span><span><i class="lg-expense"></i>Despesas</span></div>' : '';
   const height = (value) => duo ? (value > 0 ? Math.max(3, value / maximum * 100) : 0) : Math.max(3, value / maximum * 100);
   const bars = months.map((month, position) => {
@@ -259,7 +261,7 @@ function renderAnalysis() {
       : `<span class="period-track"><span class="period-fill" style="height:${height(month.total)}%">${bubble}</span></span>`;
     return `<button type="button" class="period-bar ${isCurrent ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${isCurrent}" title="${monthLabel(month.month)}: ${money(month.total)}">${tracks}<small>${shortMonthName(month.month)}</small></button>`;
   }).join('');
-  document.querySelector('#trend-chart').innerHTML = months.length ? `${chartLegend}<div class="period-bars ${duo ? 'duo' : ''}">${bars}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
+  document.querySelector('#trend-chart').innerHTML = months.length ? `${chartLegend}<div class="period-bars ${duo ? `duo ${periodClass}` : ''}">${bars}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
   const filled = values.filter((value) => value > 0);
   const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
   const highestIndex = values.indexOf(Math.max(...values, 0));
