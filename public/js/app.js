@@ -290,17 +290,15 @@ function renderBoxes(boxes) {
   document.querySelector('#boxes-total').textContent = money(total);
   const subtitle = document.querySelector('#boxes-subtitle');
   if (subtitle) subtitle.textContent = boxes.length ? `${boxes.length} ${boxes.length === 1 ? 'caixinha' : 'caixinhas'} · ${goals > 0 ? Math.round(total / goals * 100) : 0}% das metas` : '';
-  // Formato orçamento: valor em destaque, barra grossa com % e "quanto falta".
+  // Formato orçamento: % em pill de destaque, valor grande, barra e "quanto falta".
+  // Sem botão Guardar no card — ele continua no sheet (› > + Guardar).
   elements.boxes.innerHTML = boxes.length ? boxes.map((box) => {
     const name = escapeHtml(box.nome);
     const progresso = Math.min(100, Math.round(box.progresso || 0));
     const reached = box.meta > 0 && (progresso >= 100 || box.saldo >= box.meta);
-    const saveButton = reached
-      ? `<button type="button" class="box-save box-done" disabled aria-label="Meta de ${name} atingida">Concluída</button>`
-      : `<button type="button" class="box-save" data-save-box="${name}">Guardar</button>`;
     const missing = Math.max(0, (box.meta || 0) - (box.saldo || 0));
     const note = reached ? 'Meta batida' : missing > 0 ? `Falta ${money(missing)}` : '';
-    return `<article class="box-item ${reached ? 'complete' : ''}"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}"><span class="box-headline"><strong>${name}</strong><span class="box-percent">${progresso}%</span></span><span class="box-value">${money(box.saldo)}<small> de ${money(box.meta)}</small></span><span class="box-bar" role="progressbar" aria-valuenow="${progresso}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progresso}%"></i></span><small class="box-note">${note ? `${note} · ` : ''}${escapeHtml(projectionText(box.projection))}</small></button><span class="box-actions">${saveButton}<button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></span></article>`;
+    return `<article class="box-item ${reached ? 'complete' : ''}"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}"><span class="box-headline"><strong>${name}</strong><span class="box-percent ${reached ? 'done' : ''}">${reached ? '✓ ' : ''}${progresso}%</span></span><span class="box-value">${money(box.saldo)}<small> de ${money(box.meta)}</small></span><span class="box-bar" role="progressbar" aria-valuenow="${progresso}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progresso}%"></i></span><small class="box-note">${note ? `${note} · ` : ''}${escapeHtml(projectionText(box.projection))}</small></button><button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, guardar, histórico e meta de ${name}">›</button></article>`;
   }).join('') : '<div class="check-empty"><p>Nenhuma caixinha configurada.</p></div>';
   const favoriteList = document.querySelector('#favorite-box-list');
   if (favoriteList) favoriteList.innerHTML = '';

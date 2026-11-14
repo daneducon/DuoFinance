@@ -448,14 +448,14 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .box-item .box-top{display:grid;gap:10px;padding:0;min-width:0}
 .box-headline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
 .box-headline strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 15px var(--font-display)}
-.box-percent{color:var(--muted);font:700 12px var(--font-display);white-space:nowrap}
+/* % da meta em pill de destaque — era o ponto discreto do card */
+.box-percent{padding:5px 12px;border-radius:20px;background:#123628;color:var(--green);font:800 13px var(--font-display);white-space:nowrap}
+.box-percent.done{background:var(--green);color:#05291a}
 .box-value{font:700 24px var(--font-display)}
 .box-value small{color:var(--muted);font:600 12px var(--font-body)}
 .box-bar{display:block;height:9px;border-radius:6px;background:#15251f;overflow:hidden}
 .box-bar i{display:block;height:100%;min-width:0;border-radius:6px;background:var(--green)}
 .box-note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
-.box-actions{display:grid;justify-items:end;gap:8px}
-.box-item .box-save{width:auto;margin-top:0}
 .period-bars.duo .period-fill{background:#c05a47}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
