@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory } from './api.js?v=42';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=43';
 
 const currentSession = requireSession();
 const state = {
@@ -18,6 +18,18 @@ elements.boxDialog = document.querySelector('#box-dialog');
 elements.boxForm = document.querySelector('#box-form');
 elements.billDialog = document.querySelector('#bill-dialog');
 elements.billForm = document.querySelector('#bill-form');
+const toastMessage = document.querySelector('#toast-message');
+const toastAction = document.querySelector('#toast-action');
+const confirmDialog = document.querySelector('#confirm-dialog');
+toastAction.addEventListener('click', () => {
+  const handler = notify.handler;
+  notify.handler = null;
+  clearTimeout(notify.timeout);
+  toastAction.hidden = true;
+  elements.toast.classList.remove('show');
+  document.body.classList.remove('toast-open');
+  handler?.();
+});
 const tabs = { general: 'Visão geral', transactions: 'Contas', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
 
 elements.month.value = new Date().toISOString().slice(0, 7);
@@ -31,7 +43,6 @@ document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListe
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
 document.querySelector('#logout-button').addEventListener('click', () => { clearSession(); window.location.assign('/login'); });
 document.querySelector('#analyze-button').addEventListener('click', generateInsight);
-document.querySelector('#sync-pluggy-button').addEventListener('click', synchronizePluggy);
 document.querySelector('#connected-card-grid').addEventListener('click', selectCard);
 document.querySelector('#connected-card-grid').addEventListener('change', changeCardResponsible);
 document.querySelector('#upcoming-list').addEventListener('click', handleTransactionAction);
@@ -91,6 +102,7 @@ setInterval(() => { if (!document.hidden && navigator.onLine) refreshSyncMentor(
 
 async function load() {
   setLoading(true);
+  if (!state.summary) renderSkeletons();
   try {
     const data = await getFinances(elements.month.value);
     const cardsData = await getCards(elements.month.value).catch((error) => ({ error: error.message, items: [], cards: [], transactions: [], bills: [], bankBalance: 0 }));
@@ -228,18 +240,14 @@ function renderAnalysis() {
   const previous = all.at(-2);
   document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(elements.month.value)}`;
   document.querySelector('#analysis-total').textContent = money(current);
-  const badge = document.querySelector('#analysis-trend');
-  if (previous?.total > 0) {
-    const change = Math.round((current - previous.total) / previous.total * 100);
-    badge.hidden = false;
-    badge.className = `trend-badge ${change <= 0 ? 'good' : 'bad'}`;
-    badge.textContent = `${change > 0 ? '+' : ''}${change}% vs ${fullMonthLabel(previous.month)}`;
-  } else {
-    badge.hidden = true;
-  }
+  const change = previous?.total > 0 ? Math.round((current - previous.total) / previous.total * 100) : null;
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
   const maximum = Math.max(...values, 1);
-  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, index) => `<div class="period-bar ${index === months.length - 1 ? 'current' : ''}" title="${monthLabel(month.month)}: ${money(values[index])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[index] / maximum * 100)}%"></span></span><small>${shortMonthName(month.month)}</small></div>`).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
+  document.querySelector('#trend-chart').innerHTML = months.length ? `<div class="period-bars">${months.map((month, index) => {
+    const isLast = index === months.length - 1;
+    const bubble = isLast && change !== null ? `<span class="trend-bubble ${change <= 0 ? 'good' : 'bad'}">${change > 0 ? '+' : ''}${change}%</span>` : '';
+    return `<div class="period-bar ${isLast ? 'current' : ''}" title="${monthLabel(month.month)}: ${money(values[index])}"><span class="period-track"><span class="period-fill" style="height:${Math.max(3, values[index] / maximum * 100)}%">${bubble}</span></span><small>${shortMonthName(month.month)}</small></div>`;
+  }).join('')}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
   const filled = values.filter((value) => value > 0);
   const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
   const highestIndex = values.indexOf(Math.max(...values, 0));
@@ -282,7 +290,11 @@ function renderBoxes(boxes) {
   if (subtitle) subtitle.textContent = boxes.length ? `${boxes.length} ${boxes.length === 1 ? 'caixinha' : 'caixinhas'} · ${goals > 0 ? Math.round(total / goals * 100) : 0}% das metas` : '';
   elements.boxes.innerHTML = boxes.length ? boxes.map((box) => {
     const name = escapeHtml(box.nome);
-    return `<article class="box-item"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}">${boxRing(box.progresso || 0)}<span class="box-info"><strong>${name}</strong><span>${money(box.saldo)} de ${money(box.meta)}</span><small>${escapeHtml(projectionText(box.projection))}</small></span></button><button type="button" class="box-save" data-save-box="${name}">Guardar</button><button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></article>`;
+    const reached = box.meta > 0 && ((box.progresso || 0) >= 100 || box.saldo >= box.meta);
+    const saveButton = reached
+      ? `<button type="button" class="box-save box-done" disabled aria-label="Meta de ${name} atingida">Concluída</button>`
+      : `<button type="button" class="box-save" data-save-box="${name}">Guardar</button>`;
+    return `<article class="box-item"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}">${boxRing(box.progresso || 0)}<span class="box-info"><strong>${name}</strong><span>${money(box.saldo)} de ${money(box.meta)}</span><small>${escapeHtml(projectionText(box.projection))}</small></span></button>${saveButton}<button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></article>`;
   }).join('') : '<div class="check-empty"><p>Nenhuma caixinha configurada.</p></div>';
   const favoriteList = document.querySelector('#favorite-box-list');
   if (favoriteList) favoriteList.innerHTML = '';
@@ -426,7 +438,9 @@ function renderTransactions() {
   ].filter(([, list]) => list.length);
   const groupHtml = groups.map(([title, list, tone]) => `<section class="check-group ${tone}"><h3 class="check-group-title">${title}<span>${list.length}</span></h3><div class="check-list">${list.map((item) => checkRow(item, today)).join('')}</div></section>`).join('');
   const doneHtml = done.length ? `<details class="check-group done-group"><summary class="check-group-title">${words[2]}<span>${done.length}</span></summary><div class="check-list">${done.map((item) => checkRow(item, today)).join('')}</div></details>` : '';
-  elements.list.innerHTML = groupHtml + doneHtml || '<div class="check-empty"><p>Nenhum lançamento encontrado.</p></div>';
+  const ghostHtml = `<button type="button" class="add-ghost" data-add-transaction="1"><span aria-hidden="true">+</span>Adicionar lançamento</button>`;
+  const listHtml = groupHtml + doneHtml || '<div class="check-empty"><p>Nenhum lançamento encontrado.</p></div>';
+  elements.list.innerHTML = `${listHtml}${ghostHtml}`;
 }
 
 function isTransactionDone(item) {
@@ -446,7 +460,18 @@ function checkRow(item, today) {
   const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
   const sign = deposit ? '' : positive ? '+ ' : '− ';
   const label = `${paid ? 'Desmarcar' : 'Marcar'} ${escapeHtml(item.descricao)} como ${positive ? 'recebido' : 'pago'}`;
-  return `<div class="check-row ${paid ? 'done' : ''} ${overdue ? 'overdue' : ''}"><button type="button" class="check-circle ${paid ? 'checked' : ''}" ${deposit || locked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} aria-label="${label}">${paid ? iconSvg('check') : ''}</button><button type="button" class="check-main" data-open-actions="${escapeHtml(item.id)}" title="Opções do lançamento"><span class="check-text"><strong>${escapeHtml(item.descricao)}</strong><span>${meta}</span></span><strong class="check-value ${valueClass}">${sign}${money(item.valor)}</strong><span class="row-more" aria-hidden="true">⋮</span></button></div>`;
+  return `<div class="check-row ${paid ? 'done' : ''} ${overdue ? 'overdue' : ''}"><button type="button" class="check-circle ${paid ? 'checked' : ''}" ${deposit || locked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} aria-label="${label}">${paid ? iconSvg('check') : ''}</button><button type="button" class="check-main" data-open-actions="${escapeHtml(item.id)}" title="Opções do lançamento"><span class="check-text"><strong>${escapeHtml(item.descricao)}</strong><span>${meta}</span></span>${rowAvatar(item.responsavel)}<strong class="check-value ${valueClass}">${sign}${money(item.valor)}</strong><span class="row-more" aria-hidden="true">⋮</span></button></div>`;
+}
+
+// Reconhecimento imediato do responsável: bolinha D, T ou o par do casal.
+function rowAvatar(responsavel) {
+  const name = responsibleName(responsavel);
+  if (String(responsavel) === 'Nós' || String(name).toLowerCase() === 'casal') {
+    return `<span class="row-avatar" aria-hidden="true"><i class="av-d">D</i><i class="av-t">T</i></span>`;
+  }
+  const initial = (name || '?').charAt(0).toUpperCase();
+  const tone = String(responsavel) === 'Ela' ? 'av-t' : 'av-d';
+  return `<span class="row-avatar" aria-hidden="true"><i class="${tone}">${initial}</i></span>`;
 }
 
 function openActionSheet(id) {
@@ -517,7 +542,7 @@ function renderCards() {
   document.querySelector('#connected-card-grid').innerHTML = cards.length ? cards.map((card, index) => {
     const billTotal = bills.filter((bill) => bill.accountId === card.id).reduce((sum, bill) => sum + bill.valor, 0);
     const active = state.selectedCardId === card.id;
-    return `<button type="button" class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}" aria-pressed="${active}"><span class="card-face-top"><span class="card-issuer">${escapeHtml(card.institution)}</span>${brandMark(card.brand)}</span><span class="card-chip" aria-hidden="true"></span><span class="card-number">•••• ${escapeHtml(String(card.number).slice(-4))}</span><span class="card-face-bottom"><span class="card-holder">${escapeHtml(card.name)}</span><span class="card-face-bill">${money(billTotal)}</span></span></button>`;
+    return `<button type="button" class="connected-card card-tone-${index % 3} ${active ? 'active' : ''}" data-card-id="${escapeHtml(card.id)}" aria-pressed="${active}"><span class="card-face-top"><span class="card-issuer">${escapeHtml(card.institution)}</span>${billPill(bills.find((bill) => bill.accountId === card.id))}${brandMark(card.brand)}</span><span class="card-chip" aria-hidden="true"></span><span class="card-number">•••• ${escapeHtml(String(card.number).slice(-4))}</span><span class="card-face-bottom"><span class="card-holder">${escapeHtml(friendlyAccountName(card.name))}</span><span class="card-face-bill">${money(billTotal)}</span></span></button>`;
   }).join('') : '<div class="cards-empty"><p>Nenhum cartão conectado.</p></div>';
   renderSelectedCard(data, monthLabel);
   renderCardTransactions();
@@ -529,6 +554,23 @@ function billLabel(bill) {
   if (bill.estimada) return 'Estimativa';
   if (bill.ajustada) return 'Ajustada';
   return bill.status || '';
+}
+
+// Pílula de status direto no cartão: Aberta, Paga ou projeção.
+function billPill(bill) {
+  if (!bill) return '';
+  const cls = bill.status === 'Pago' ? 'paid' : bill.estimada ? 'projected' : 'open';
+  return `<span class="status-pill ${cls}">${escapeHtml(bill.status === 'Pago' ? billLabel(bill) : 'Aberta')}</span>`;
+}
+
+// Nomes vindos da Pluggy checam brutos ("NU PAGAMENTOS LTDA"); limpa sufixos legais.
+function friendlyAccountName(name) {
+  const cleaned = String(name || '')
+    .replace(/\b(PAGAMENTOS?|FINANCEIRAS?|BANCOS?|LTDA|S\.?\/?A\.?|EIRELI|INSTITUTO|ME)\b\.?/gi, '')
+    .replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Cartão';
+  const small = new Set(['de', 'da', 'do', 'das', 'dos', 'e', 'em']);
+  return cleaned.toLowerCase().split(' ').map((word, index) => small.has(word) && index > 0 ? word : word.replace(/^\p{L}/u, (char) => char.toUpperCase())).join(' ');
 }
 
 function renderSelectedCard(data, monthLabel) {
@@ -554,9 +596,9 @@ function renderSelectedCard(data, monthLabel) {
     <div class="limit-row"><span>Usado ${money(card.usedLimit || 0)}</span><span>Disponível ${money(card.availableLimit || 0)}</span></div>
     <p class="card-detail-next">Próxima (${nextLabel}): ${nextBill ? `${money(nextBill.valor)} · ${nextBill.estimada ? 'estimativa' : 'oficial'}` : 'sem previsão'}</p>
     <div class="card-actions">
-      <button type="button" data-bill-history="${escapeHtml(card.id)}"><span class="action-icon" aria-hidden="true">▥</span>Histórico</button>
-      <button type="button" data-show-purchases><span class="action-icon" aria-hidden="true">≡</span>Compras</button>
-      <label><span class="action-icon" aria-hidden="true">◐</span><select data-card-owner="${escapeHtml(card.id)}" aria-label="Responsável pelo cartão">${owners}</select></label>
+      <button type="button" data-bill-history="${escapeHtml(card.id)}"><span class="action-icon" aria-hidden="true">${iconSvg('clock')}</span>Histórico</button>
+      <button type="button" data-show-purchases><span class="action-icon" aria-hidden="true">${iconSvg('bag')}</span>Compras</button>
+      <label><select data-card-owner="${escapeHtml(card.id)}" aria-label="Responsável pelo cartão">${owners}</select></label>
     </div>
   </article>`;
 }
@@ -593,11 +635,16 @@ function renderUpcoming() {
     .filter((item) => item.status === 'Pendente' && item.data && ['Despesa', 'Pagamento Fatura', 'Receita'].includes(item.tipo) && item.fonte !== 'pluggy' && !['Aberta', 'Projetada'].includes(item.situacao))
     .sort((a, b) => a.data.localeCompare(b.data))
     .slice(0, 3);
-  document.querySelector('#upcoming-list').innerHTML = items.length ? items.map((item) => {
+  document.querySelector('#upcoming-list').innerHTML = items.length ? items.map((item, index) => {
     const income = item.tipo === 'Receita';
     const overdue = item.data < today;
     const label = income ? 'recebido' : 'pago';
-    return `<div class="upcoming-row ${overdue ? 'overdue' : ''}"><button class="status-toggle" data-status="${escapeHtml(item.id)}" title="Marcar como ${label}" aria-label="Marcar ${escapeHtml(item.descricao)} como ${label}"></button><div class="upcoming-info"><strong>${escapeHtml(item.descricao)}</strong><span>${overdue ? 'Venceu' : income ? 'Entra' : 'Vence'} ${shortDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</span></div><strong class="${income ? 'income-value' : 'expense-value'}">${income ? '+' : '−'} ${money(item.valor)}</strong></div>`;
+    const toggle = `<button class="status-toggle" data-status="${escapeHtml(item.id)}" title="Marcar como ${label}" aria-label="Marcar ${escapeHtml(item.descricao)} como ${label}">${iconSvg('check')}</button>`;
+    // O vencimento mais próximo ganha um card invertido: é a ação nº 1 da tela.
+    if (index === 0) {
+      return `<div class="urgent-bill ${overdue ? 'overdue' : ''}">${toggle}<div class="urgent-info"><span class="urgent-label">${overdue ? 'Mais urgente · venceu' : income ? 'Próxima entrada' : 'Mais urgente'}</span><strong>${escapeHtml(item.descricao)}</strong><span>${overdue ? 'Venceu' : income ? 'Entra' : 'Vence'} ${shortDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</span></div><strong class="${income ? 'income-value' : 'expense-value'}">${income ? '+' : '−'} ${money(item.valor)}</strong></div>`;
+    }
+    return `<div class="upcoming-row ${overdue ? 'overdue' : ''}">${toggle}<div class="upcoming-info"><strong>${escapeHtml(item.descricao)}</strong><span>${overdue ? 'Venceu' : income ? 'Entra' : 'Vence'} ${shortDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</span></div><strong class="${income ? 'income-value' : 'expense-value'}">${income ? '+' : '−'} ${money(item.valor)}</strong></div>`;
   }).join('') : '<p class="muted-copy">Tudo em dia neste mês.</p>';
 }
 
@@ -638,7 +685,7 @@ function openBillHistory(id) {
   const official = history.filter((bill) => !bill.estimada);
   const average = official.length ? official.reduce((sum, bill) => sum + bill.valor, 0) / official.length : 0;
   const highest = official.reduce((max, bill) => (bill.valor > (max?.valor || 0) ? bill : max), null);
-  document.querySelector('#bill-history-title').textContent = card ? `${card.name} · ${String(card.number).slice(-4)}` : 'Cartão';
+  document.querySelector('#bill-history-title').textContent = card ? `${friendlyAccountName(card.name)} · ${String(card.number).slice(-4)}` : 'Cartão';
   document.querySelector('#bill-history-stats').innerHTML = `<div><span>Média das faturas</span><strong>${money(average)}</strong></div><div><span>Maior fatura</span><strong>${highest ? `${money(highest.valor)} · ${monthLabel(highest.mesRef)}` : '—'}</strong></div><div><span>Faturas registradas</span><strong>${official.length}</strong></div>`;
   const maximum = Math.max(...history.map((bill) => bill.valor), 1);
   const chart = document.querySelector('#bill-history-chart');
@@ -727,7 +774,7 @@ function renderHomeHero(summary) {
 function renderCardTransactions() {
   const selected = state.cardsData.cards?.find((card) => card.id === state.selectedCardId);
   const transactions = (state.cardsData.transactions || []).filter((item) => !selected || item.accountId === selected.id).sort((a, b) => b.data.localeCompare(a.data) || (b.ordem || 0) - (a.ordem || 0));
-  document.querySelector('#selected-card-title').textContent = selected ? `Gastos em ${selected.name}` : 'Gastos nos cartões';
+  document.querySelector('#selected-card-title').textContent = selected ? `Gastos em ${friendlyAccountName(selected.name)}` : 'Gastos nos cartões';
   const total = transactions.reduce((sum, item) => sum + (item.tipo === 'Estorno' ? -item.valor : item.valor), 0);
   document.querySelector('#card-expense-total').textContent = money(total);
   document.querySelector('#card-transaction-list').innerHTML = transactions.length ? transactions.map((item) => `<div class="card-transaction"><div><strong>${escapeHtml(item.descricao)}</strong><span>${fullDate(item.data)} · ${escapeHtml(item.categoria)}</span></div><strong class="${item.tipo === 'Estorno' ? 'income-value' : 'expense-value'}">${item.tipo === 'Estorno' ? '+' : '−'} ${money(item.valor)}</strong></div>`).join('') : '<p class="muted-copy">Nenhum gasto encontrado neste mês.</p>';
@@ -756,16 +803,21 @@ async function changeCardResponsible(event) {
 
 async function synchronizePluggy() {
   if (currentSession?.demo) return notify('A sincronização com os bancos funciona só com o login Google.');
-  const button = document.querySelector('#sync-pluggy-button');
+  const button = document.querySelector('#fab-sync');
+  const status = document.querySelector('#pluggy-status');
   const previousMentorUpdate = state.mentor?.sync?.updatedAt;
   button.disabled = true;
+  if (status) status.textContent = 'Sincronizando bancos...';
   try {
     const result = await syncPluggy();
     await load();
     notify(result.mentorQueued ? 'Dados bancários sincronizados. O Mentor Duo está atualizando a orientação.' : 'Dados bancários sincronizados.');
     if (result.mentorQueued) refreshSyncMentor(previousMentorUpdate);
   }
-  catch (error) { notify(error.message, true); }
+  catch (error) {
+    notify(error.message, true);
+    if (status) status.textContent = 'Não foi possível sincronizar agora.';
+  }
   finally { button.disabled = false; }
 }
 
@@ -875,6 +927,7 @@ async function saveTransaction(event) {
     idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem'), cartao: form.get('cartao') || ''
   };
   const action = existingId ? 'update' : 'create';
+  const previous = existingId ? state.transactions.find((item) => item.id === existingId) : null;
   const saveButton = document.querySelector('#save-button');
   saveButton.disabled = true;
   try {
@@ -883,9 +936,12 @@ async function saveTransaction(event) {
     if (result.queued) {
       transaction.id ||= `offline-${Date.now()}`;
       applyLocal(action, transaction);
-      notify('Alteração salva para sincronizar depois.');
+      rememberAction(action === 'create' ? { kind: 'create', transaction, queueId: result.queueId } : { kind: 'update', previous, queueId: result.queueId });
+      notify('Alteração salva para sincronizar depois.', false, { label: 'Desfazer', handler: undoLastAction });
     } else {
-      notify(action === 'create' ? 'Lançamento adicionado.' : 'Lançamento atualizado.');
+      if (action === 'create' && result.id) transaction.id = result.id;
+      rememberAction(action === 'create' ? { kind: 'create', transaction } : { kind: 'update', previous, transaction });
+      notify(action === 'create' ? 'Lançamento adicionado.' : 'Lançamento atualizado.', false, { label: 'Desfazer', handler: undoLastAction });
       await load();
     }
   } catch (error) { notify(error.message, true); }
@@ -943,6 +999,7 @@ async function handleTransactionAction(event) {
   const deleteId = event.target.closest('[data-delete]')?.dataset.delete;
   const statusId = event.target.closest('[data-status]')?.dataset.status;
   const actionsId = event.target.closest('[data-open-actions]')?.dataset.openActions;
+  if (event.target.closest('[data-add-transaction]')) return openForm();
   if (billId) return openBillForm(state.transactions.find((item) => item.id === billId));
   if (editId) return openForm(state.transactions.find((item) => item.id === editId));
   if (statusId) return toggleStatus(statusId, event.target.closest('[data-status]'));
@@ -950,13 +1007,102 @@ async function handleTransactionAction(event) {
   if (deleteId) return deleteTransactionById(deleteId);
 }
 
+let lastAction = null;
+
+function rememberAction(record) {
+  lastAction = record;
+}
+
+// Reverte a última ação financeira: ação enviada é compensada na API; ação
+// enfileirada (offline) sai da fila antes de sincronizar.
+async function undoLastAction() {
+  const record = lastAction;
+  if (!record) return;
+  lastAction = null;
+  try {
+    if (record.kind === 'create') {
+      if (record.queueId) {
+        await queueRemove(record.queueId);
+        applyLocal('delete', record.transaction);
+      } else {
+        await mutate('delete', record.transaction);
+        await load();
+      }
+    } else if (record.kind === 'update') {
+      if (record.queueId) {
+        await queueRemove(record.queueId);
+        applyLocal('update', record.previous);
+      } else {
+        await mutate('update', record.previous);
+        await load();
+      }
+    } else if (record.kind === 'bill-status') {
+      if (record.queueId) {
+        await queueRemove(record.queueId);
+        applyLocal('update', record.previous);
+      } else {
+        await updateBillStatus(record.transaction.id, record.previous.status);
+        await load();
+      }
+    } else if (record.kind === 'delete') {
+      if (record.queueId) {
+        await queueRemove(record.queueId);
+        applyLocal('create', record.transaction);
+      } else {
+        await mutate('create', record.transaction);
+        await load();
+      }
+    }
+    notify('Ação desfeita.');
+  } catch (error) { notify(error.message, true); }
+}
+
+// Modal de confirmação para ações destrutivas, no lugar do confirm() nativo.
+function requestConfirm(title, message, confirmLabel = 'Excluir') {
+  return new Promise((resolve) => {
+    const ok = confirmDialog.querySelector('#confirm-ok');
+    const cancel = confirmDialog.querySelector('#confirm-cancel');
+    const close = confirmDialog.querySelector('#confirm-cancel-x');
+    document.querySelector('#confirm-title').textContent = title;
+    document.querySelector('#confirm-text').textContent = message;
+    ok.textContent = confirmLabel;
+    const finish = (value) => {
+      ok.removeEventListener('click', onOk);
+      cancel.removeEventListener('click', onCancel);
+      close.removeEventListener('click', onCancel);
+      confirmDialog.removeEventListener('click', onBackdrop);
+      confirmDialog.removeEventListener('cancel', onCancel);
+      if (confirmDialog.open) confirmDialog.close();
+      resolve(value);
+    };
+    const onOk = () => finish(true);
+    const onCancel = () => finish(false);
+    const onBackdrop = (event) => { if (event.target === confirmDialog) onCancel(); };
+    ok.addEventListener('click', onOk);
+    cancel.addEventListener('click', onCancel);
+    close.addEventListener('click', onCancel);
+    confirmDialog.addEventListener('click', onBackdrop);
+    confirmDialog.addEventListener('cancel', onCancel);
+    confirmDialog.showModal();
+  });
+}
+
 async function deleteTransactionById(id) {
   const transaction = state.transactions.find((item) => item.id === id);
-  if (!transaction || !confirm(`Excluir “${transaction.descricao}”?`)) return;
+  if (!transaction) return;
+  const confirmed = await requestConfirm('Excluir lançamento', `Excluir “${transaction.descricao}”? O lançamento sai deste mês — dá para desfazer por alguns segundos.`);
+  if (!confirmed) return;
   try {
     const result = await mutate('delete', transaction);
-    if (result.queued) applyLocal('delete', transaction); else await load();
-    notify(result.queued ? 'Exclusão agendada.' : 'Lançamento excluído.');
+    if (result.queued) {
+      rememberAction({ kind: 'delete', transaction, queueId: result.queueId });
+      applyLocal('delete', transaction);
+      notify('Exclusão agendada.', false, { label: 'Desfazer', handler: undoLastAction });
+    } else {
+      rememberAction({ kind: 'delete', transaction });
+      await load();
+      notify('Lançamento excluído.', false, { label: 'Desfazer', handler: undoLastAction });
+    }
   } catch (error) { notify(error.message, true); }
 }
 
@@ -988,19 +1134,27 @@ async function saveBill(event) {
 async function toggleStatus(id, button) {
   const transaction = state.transactions.find((item) => item.id === id);
   if (!transaction || transaction.fonte === 'pluggy' || ['Aberta', 'Projetada'].includes(transaction.situacao)) return;
+  const previous = { ...transaction };
   const status = transaction.status === 'Pago' ? 'Pendente' : 'Pago';
   button.disabled = true;
   try {
     if (transaction.fonte === 'pluggy-bill') {
       await updateBillStatus(transaction.id, status);
+      rememberAction({ kind: 'bill-status', transaction, previous });
       await load();
-      notify(`Fatura marcada como ${status.toLowerCase()}.`);
+      notify(`Fatura marcada como ${status.toLowerCase()}.`, false, { label: 'Desfazer', handler: undoLastAction });
       return;
     }
     const updated = { ...transaction, status, dataPg: status === 'Pago' ? transaction.data : '' };
     const result = await mutate('update', updated);
-    if (result.queued) applyLocal('update', updated); else await load();
-    notify(`Lançamento marcado como ${status.toLowerCase()}.`);
+    if (result.queued) {
+      applyLocal('update', updated);
+      rememberAction({ kind: 'update', previous, queueId: result.queueId });
+    } else {
+      rememberAction({ kind: 'update', previous, transaction: updated });
+      await load();
+    }
+    notify(`Lançamento marcado como ${status.toLowerCase()}.`, false, { label: 'Desfazer', handler: undoLastAction });
   } catch (error) { notify(error.message, true); button.disabled = false; }
 }
 
@@ -1198,17 +1352,42 @@ function renderMentor() {
 }
 
 function updateConnectivity() { elements.offline.hidden = navigator.onLine; }
-function setLoading(loading) { document.body.style.cursor = loading ? 'progress' : ''; }
-function notify(message, error = false) {
-  elements.toast.textContent = message;
+function setLoading(loading) {
+  document.body.style.cursor = loading ? 'progress' : '';
+  document.body.classList.toggle('is-loading', loading);
+}
+
+// Primeira carga: blocos pulsantes no lugar dos números enquanto a API responde.
+function renderSkeletons() {
+  const sk = (width, height) => `<span class="skeleton" style="width:${width};height:${height}"></span>`;
+  document.querySelector('#forecast-balance').innerHTML = sk('min(240px,68%)', '44px');
+  document.querySelector('#income-total').innerHTML = sk('88px', '20px');
+  document.querySelector('#expense-total').innerHTML = sk('88px', '20px');
+  document.querySelector('#upcoming-list').innerHTML = Array.from({ length: 3 }, () => `<div class="upcoming-row"><span aria-hidden="true"></span><div class="upcoming-info">${sk('58%', '14px')}${sk('42%', '10px')}</div>${sk('72px', '14px')}</div>`).join('');
+  document.querySelector('#transaction-list').innerHTML = `<div class="check-list">${Array.from({ length: 4 }, () => `<div class="check-row">${sk('32px', '32px')}<div class="check-main"><span class="check-text">${sk('52%', '14px')}${sk('34%', '10px')}</span></div>${sk('76px', '16px')}</div>`).join('')}</div>`;
+  document.querySelector('#connected-card-grid').innerHTML = `<div class="skeleton" style="width:min(320px,82%);height:190px;border-radius:20px"></div>`;
+  document.querySelector('#selected-card-detail').innerHTML = `<div class="card-detail">${sk('38%', '12px')}${sk('52%', '30px')}${sk('100%', '8px')}</div>`;
+  document.querySelector('#ceiling-panel').innerHTML = `<div class="ceiling-compact">${sk('32%', '12px')}${sk('100%', '8px')}${sk('66%', '10px')}</div>`;
+}
+function notify(message, error = false, action = null) {
+  toastMessage.textContent = message;
   elements.toast.classList.toggle('error', error);
+  if (action) {
+    notify.handler = action.handler;
+    toastAction.hidden = false;
+  } else {
+    notify.handler = null;
+    toastAction.hidden = true;
+  }
   elements.toast.classList.add('show');
   document.body.classList.add('toast-open');
   clearTimeout(notify.timeout);
   notify.timeout = setTimeout(() => {
     elements.toast.classList.remove('show');
     document.body.classList.remove('toast-open');
-  }, 3500);
+    toastAction.hidden = true;
+    notify.handler = null;
+  }, action ? 4000 : 3500);
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0); }
 function fullDate(value) { return new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T12:00:00`)); }
@@ -1243,6 +1422,8 @@ function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (cha
 function iconSvg(name) {
   const paths = {
     check: '<path d="m5 12 4 4L19 6"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    bag: '<path d="M6.5 8.5h11L16.4 20H7.6L6.5 8.5Z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
     edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/>',
     money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9H5m14 6h-2"/>'

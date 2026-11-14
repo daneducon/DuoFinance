@@ -194,7 +194,12 @@ export async function mutate(action, transaction) {
   const payload = { action, ...(action === 'delete' ? { id: transaction.id } : { transaction }) };
   if (session()?.demo) {
     const saved = JSON.parse(localStorage.getItem('duofinance_demo_data') || 'null') || demoData();
-    if (action === 'create') saved.transactions.push({ ...transaction, id: crypto.randomUUID() });
+    if (action === 'create') {
+      const id = crypto.randomUUID();
+      saved.transactions.push({ ...transaction, id });
+      localStorage.setItem('duofinance_demo_data', JSON.stringify(saved));
+      return { demo: true, id };
+    }
     if (action === 'update') saved.transactions = saved.transactions.map((item) => item.id === transaction.id ? transaction : item);
     if (action === 'delete') saved.transactions = saved.transactions.filter((item) => item.id !== transaction.id);
     localStorage.setItem('duofinance_demo_data', JSON.stringify(saved));
@@ -204,9 +209,9 @@ export async function mutate(action, transaction) {
     return await request('/api/financas', { method: 'POST', body: JSON.stringify(payload) });
   } catch (error) {
     if (!navigator.onLine || error instanceof TypeError) {
-      await queueAdd({ payload, token: session()?.token, createdAt: Date.now() });
+      const queueId = await queueAdd({ payload, token: session()?.token, createdAt: Date.now() });
       navigator.serviceWorker?.ready.then((registration) => registration.sync?.register('sync-finances')).catch(() => {});
-      return { queued: true };
+      return { queued: true, queueId };
     }
     throw error;
   }
@@ -255,6 +260,11 @@ export async function syncQueue() {
     }
   }
   return completed;
+}
+
+// Desfazer: remove uma mutação ainda não enviada da fila offline.
+export function queueRemove(queueId) {
+  return queueDelete(queueId);
 }
 
 export async function analyze(month) {

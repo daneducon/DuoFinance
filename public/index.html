@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=49">
+  <link rel="stylesheet" href="/css/style.css?v=51">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -29,7 +29,8 @@
             <path d="M9 20v-7h6v7" />
           </svg> Geral</button>
         <button class="nav-item" data-tab="transactions"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
+            <path d="M8 6h13M8 12h13M8 18h13" />
+            <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
           </svg> Contas</button>
         <button class="nav-item" data-tab="analysis"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M5 19V9m7 10V5m7 14v-7" />
@@ -120,7 +121,7 @@
       <section class="tab-view" data-view="analysis">
         <section class="analysis-hero" aria-label="Gasto do mês">
           <p class="home-label" id="analysis-month-label">Gasto no mês</p>
-          <div class="analysis-total"><strong id="analysis-total">R$ 0,00</strong><span class="trend-badge" id="analysis-trend" hidden></span></div>
+          <div class="analysis-total"><strong id="analysis-total">R$ 0,00</strong></div>
           <div class="segmented segmented-sm" id="analysis-period" role="group" aria-label="Período do gráfico"><button type="button" class="active" data-period="3">3 meses</button><button type="button" data-period="6">6 meses</button><button type="button" data-period="12">12 meses</button></div>
           <div class="period-chart" id="trend-chart"></div>
           <div class="period-stats" id="trend-metrics"></div>
@@ -161,7 +162,6 @@
       <section class="tab-view" data-view="cards">
         <div class="cards-top">
           <div><h2 class="cards-title">Seus cartões</h2><p class="cards-status" id="pluggy-status">Sincronize as conexões já cadastradas na Pluggy.</p></div>
-          <button class="icon-round" id="sync-pluggy-button" type="button" aria-label="Sincronizar dados" title="Sincronizar dados">↻</button>
         </div>
         <div class="connected-card-grid card-carousel" id="connected-card-grid" aria-label="Cartões conectados"></div>
         <div id="selected-card-detail"></div>
@@ -270,6 +270,17 @@
     </div>
   </dialog>
 
+  <dialog id="confirm-dialog">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">CONFIRMAÇÃO</p>
+        <h2 id="confirm-title">Excluir lançamento</h2>
+      </div><button type="button" class="icon-button" id="confirm-cancel-x" aria-label="Fechar">×</button>
+    </div>
+    <p class="confirm-text" id="confirm-text"></p>
+    <div class="dialog-actions"><button type="button" class="button ghost" id="confirm-cancel">Cancelar</button><button type="button" class="button danger" id="confirm-ok">Excluir</button></div>
+  </dialog>
+
   <dialog id="action-sheet" class="sheet" aria-label="Ações do lançamento"></dialog>
 
   <div class="fab" id="fab">
@@ -282,8 +293,8 @@
     <button type="button" class="fab-button" id="fab-button" aria-label="Ações rápidas" aria-haspopup="menu" aria-expanded="false" aria-controls="fab-menu">＋</button>
   </div>
 
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script type="module" src="/js/app.js?v=49"></script>
+  <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
+  <script type="module" src="/js/app.js?v=51"></script>
 </body>
 
 </html>
