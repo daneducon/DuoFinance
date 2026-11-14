@@ -441,21 +441,22 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .category-value{display:grid;justify-items:end;gap:2px;font:700 15px var(--font-display);white-space:nowrap}
 .category-value small{margin:0;color:var(--muted);font:600 10px var(--font-body)}
 
-/* Refactor de layout: caixinhas no formato orçamento (o width:100% do botão
-   dentro de linha flex era o que estourava a largura do celular) */
-.box-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:18px;border:1px solid var(--line);border-radius:18px}
+/* Refactor de layout: caixinhas como grid de cards, 2 por linha (estilo
+   Monthly Budgets das referências). O card inteiro abre o sheet. */
+.box-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.box-item{padding:16px;border:1px solid var(--line);border-radius:18px;background:var(--surface)}
 .box-item.complete .box-bar i{background:#1c7a52}
-.box-item .box-top{display:grid;gap:10px;padding:0;min-width:0}
-.box-headline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
-.box-headline strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 15px var(--font-display)}
+.box-item .box-top{display:grid;gap:9px;padding:0;min-width:0;text-align:left}
+.box-headline{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+.box-headline strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 14px var(--font-display)}
 /* % da meta em pill de destaque — era o ponto discreto do card */
-.box-percent{padding:5px 12px;border-radius:20px;background:#123628;color:var(--green);font:800 13px var(--font-display);white-space:nowrap}
+.box-percent{flex:0 0 auto;padding:4px 10px;border-radius:20px;background:#123628;color:var(--green);font:800 12px var(--font-display);white-space:nowrap}
 .box-percent.done{background:var(--green);color:#05291a}
-.box-value{font:700 24px var(--font-display)}
-.box-value small{color:var(--muted);font:600 12px var(--font-body)}
-.box-bar{display:block;height:9px;border-radius:6px;background:#15251f;overflow:hidden}
+.box-value{font:700 19px var(--font-display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.box-value small{color:var(--muted);font:600 11px var(--font-body)}
+.box-bar{display:block;height:8px;border-radius:6px;background:#15251f;overflow:hidden}
 .box-bar i{display:block;height:100%;min-width:0;border-radius:6px;background:var(--green)}
-.box-note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+.box-note{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;color:var(--muted);font-size:10px;line-height:1.45}
 .period-bars.duo .period-fill{background:#c05a47}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
