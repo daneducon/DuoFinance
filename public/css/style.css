@@ -430,6 +430,10 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .chart-legend .lg-expense{background:#c05a47}
 /* Balão da receita fica um degrau acima do de despesa para não colidirem quando as barras empatam. */
 .trend-bubble.income-bubble{bottom:calc(100% + 24px)}
+/* Modo duplo: gráfico mais alto e com teto reservado — os balões de % dos meses
+   com barra cheia não podem vazar para cima e colidir com a legenda. */
+.period-bars.duo{height:210px;padding-top:48px}
+@media(max-width:650px){.period-bars.duo{height:185px;padding-top:42px}}
 .period-bars.duo .period-fill{background:#c05a47}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
