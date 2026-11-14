@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=60">
+  <link rel="stylesheet" href="/css/style.css?v=61">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -128,25 +128,15 @@
           <div class="analysis-total"><strong id="analysis-total">R$ 0,00</strong></div>
           <div class="segmented segmented-sm" id="analysis-period" role="group" aria-label="Período do gráfico"><button type="button" class="active" data-period="3">3 meses</button><button type="button" data-period="6">6 meses</button><button type="button" data-period="12">12 meses</button></div>
           <div class="period-chart" id="trend-chart"></div>
-          <div class="period-stats" id="trend-metrics"></div>
         </section>
         <section class="home-section">
           <div class="home-section-head"><h2>Por categoria</h2><span class="soft-label" id="expense-count">0 lançamentos</span></div>
           <div class="category-list" id="category-chart"></div>
           <div class="check-empty" id="chart-empty" hidden><p>Nenhuma despesa neste mês.</p></div>
         </section>
-        <section class="home-section">
-          <div class="home-section-head"><h2>Divisão do casal</h2></div>
-          <div class="split-card" id="responsible-chart"></div>
-        </section>
         <section class="home-section analysis-flow">
           <div class="home-section-head"><h2>Fluxo do mês</h2><span class="risk-badge" id="cashflow-risk">Calculando</span></div>
           <div id="cashflow-cycles"></div>
-          <details class="cashflow-detail">
-            <summary>Ver dia a dia</summary>
-            <div class="cashflow-chart" id="cashflow-chart"></div>
-          </details>
-          <div class="cashflow-summary" id="cashflow-summary"></div>
         </section>
         <section class="home-mentor analysis-mentor" aria-label="Mentor Duo">
           <span class="spark" aria-hidden="true">✦</span>
@@ -167,17 +157,17 @@
         <div class="cards-top">
           <div><h2 class="cards-title">Seus cartões</h2><p class="cards-status" id="pluggy-status">Sincronize as conexões já cadastradas na Pluggy.</p></div>
         </div>
-        <div class="connected-card-grid card-carousel" id="connected-card-grid" aria-label="Cartões conectados"></div>
-        <div id="selected-card-detail"></div>
-        <div id="ceiling-panel"></div>
         <section class="cards-summary" aria-label="Contas e limites">
           <div><span>Saldo em contas</span><strong id="bank-balance">R$ 0,00</strong><small class="balance-updated" id="bank-balance-updated"></small></div>
           <div><span>Limite disponível</span><strong id="card-available-total">R$ 0,00</strong></div>
         </section>
+        <div class="connected-card-grid card-carousel" id="connected-card-grid" aria-label="Cartões conectados"></div>
+        <div id="selected-card-detail"></div>
         <article class="panel card-expenses-panel">
-          <div class="panel-head"><div><p class="eyebrow">COMPRAS PELA DATA DA COMPRA</p><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
+          <div class="panel-head"><div><h2 id="selected-card-title">Gastos nos cartões</h2></div><span class="soft-label" id="card-expense-total">R$ 0,00</span></div>
           <div class="card-transaction-list" id="card-transaction-list"></div>
         </article>
+        <div id="ceiling-panel"></div>
       </section>
     </main>
   </div>
@@ -298,7 +288,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
-  <script type="module" src="/js/app.js?v=59"></script>
+  <script type="module" src="/js/app.js?v=61"></script>
 </body>
 
 </html>

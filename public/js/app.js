@@ -177,32 +177,14 @@ function updateMonthLabel() {
   document.querySelector('#month-label').textContent = label.replace(/^./, (letter) => letter.toUpperCase());
 }
 
+// Fluxo do mês: só a orientação (headline + ciclos) e o badge de risco.
+// O gráfico de saldo corrido saiu — saldo inicial não orienta decisão.
 function renderCashFlow() {
-  const cashFlow = state.cashFlow;
   renderCycles(state.cashCycles || calculateLocalCashCycles());
-  const chart = document.querySelector('#cashflow-chart');
   const badge = document.querySelector('#cashflow-risk');
-  const summary = document.querySelector('#cashflow-summary');
-  if (!cashFlow?.points?.length) {
-    chart.innerHTML = '<div class="empty-state"><p>Fluxo indisponível.</p></div>';
-    return;
-  }
-  const values = cashFlow.points.map((point) => point.balance);
-  const minimum = Math.min(0, ...values);
-  const maximum = Math.max(0, ...values);
-  const range = maximum - minimum || 1;
-  const coordinates = cashFlow.points.map((point, index) => {
-    const x = 20 + index / Math.max(1, cashFlow.points.length - 1) * 960;
-    const y = 220 - (point.balance - minimum) / range * 190;
-    return `${x},${y}`;
-  }).join(' ');
-  const zeroY = 220 - (0 - minimum) / range * 190;
-  chart.innerHTML = `<svg viewBox="0 0 1000 250" role="img" aria-label="Evolução diária do saldo"><line x1="20" y1="${zeroY}" x2="980" y2="${zeroY}" class="zero-line"/><polyline points="${coordinates}" class="cash-line"/><text x="20" y="244">01</text><text x="930" y="244">${cashFlow.points.length}</text></svg>`;
-  const hasRisk = cashFlow.negativePeriods.length > 0;
+  const hasRisk = Boolean(state.cashFlow?.negativePeriods?.length);
   badge.textContent = hasRisk ? 'Atenção necessária' : 'Mês protegido';
   badge.className = `risk-badge ${hasRisk ? 'danger' : 'safe'}`;
-  const periods = cashFlow.negativePeriods.map((period) => `entre ${shortDate(period.start)} e ${shortDate(period.end)} o saldo fica em <strong class="negative">${money(period.minimum)}</strong>`).join('; ');
-  summary.innerHTML = `<div><span>Saldo inicial do mês</span><strong>${money(cashFlow.openingBalance)}</strong></div><div><span>Menor saldo</span><strong class="${cashFlow.minimumBalance < 0 ? 'negative' : ''}">${money(cashFlow.minimumBalance)}</strong></div><div><span>Fechamento previsto</span><strong>${money(cashFlow.closingBalance)}</strong></div><p>${hasRisk ? `Risco de saldo negativo: ${periods}.` : 'Nenhum intervalo negativo previsto para este mês.'}</p>`;
 }
 
 function openCategorySheet(name) {
@@ -265,18 +247,7 @@ function renderAnalysis() {
     return `<button type="button" class="period-bar ${isCurrent ? 'current' : ''}" data-month="${escapeHtml(month.month)}" aria-pressed="${isCurrent}" title="${monthLabel(month.month)}: ${money(month.total)}">${tracks}<small>${shortMonthName(month.month)}</small></button>`;
   }).join('');
   document.querySelector('#trend-chart').innerHTML = months.length ? `${chartLegend}<div class="period-bars ${duo ? `duo ${periodClass}` : ''}">${bars}</div>` : '<p class="muted-copy">Histórico indisponível.</p>';
-  const filled = values.filter((value) => value > 0);
-  const average = filled.reduce((sum, value) => sum + value, 0) / Math.max(1, filled.length);
-  const highestIndex = values.indexOf(Math.max(...values, 0));
-  document.querySelector('#trend-metrics').innerHTML = `<div><span>Média dos meses com gasto</span><strong>${money(average)}</strong></div><div><span>Maior mês</span><strong>${highestIndex >= 0 && values[highestIndex] > 0 ? `${money(values[highestIndex])} · ${shortMonthName(months[highestIndex].month)}` : '—'}</strong></div>`;
   renderCategoryChart(selected.categories || {}, selected.month);
-  const responsibleValues = selected.responsibles || {};
-  const colors = { Ele: 'var(--green)', Ela: '#e99d7d', Nós: '#5cb8cc' };
-  const responsibles = [...new Set(['Ele', 'Ela', 'Nós', ...Object.keys(responsibleValues)])].map((name) => [name, Math.max(0, responsibleValues[name] || 0)]);
-  const responsibleTotal = responsibles.reduce((sum, [, value]) => sum + value, 0);
-  document.querySelector('#responsible-chart').innerHTML = responsibleTotal > 0
-    ? `<div class="split-bar">${responsibles.filter(([, value]) => value > 0).map(([name, value]) => `<span style="width:${value / responsibleTotal * 100}%;background:${colors[name] || '#8fa39a'}" title="${escapeHtml(responsibleName(name))}"></span>`).join('')}</div><div class="split-legend">${responsibles.map(([name, value]) => `<div><i style="background:${colors[name] || '#8fa39a'}"></i><span>${escapeHtml(responsibleName(name))}</span><strong>${money(value)}</strong><small>${Math.round(value / responsibleTotal * 100)}%</small></div>`).join('')}</div>`
-    : '<p class="muted-copy">Sem despesas no período.</p>';
 }
 
 function handleAnalysisPeriod(event) {
@@ -299,16 +270,11 @@ function renderCategoryChart(categoryTotals, month) {
   const total = categories.reduce((sum, [, value]) => sum + value, 0) || 1;
   elements.chart.hidden = categories.length === 0;
   elements.chartEmpty.hidden = categories.length > 0;
-  elements.chart.innerHTML = categories.map(([name, value]) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span><span class="bar-track"><span class="bar" style="width:${value / total * 100}%"></span></span></button>`).join('');
+  // Ranking no estilo das referências: nome, barra grossa colorida por posição e valor + % à direita.
+  const palette = ['#27df8b', '#5cb8cc', '#e99d7d', '#f2c46d', '#b48ce0', '#7fae9c'];
+  elements.chart.innerHTML = categories.map(([name, value], index) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="bar-track"><span class="bar" style="width:${Math.max(3, Math.round(value / total * 100))}%;background:${palette[index % palette.length]}"></span></span><span class="category-value"><strong>${money(value)}</strong><small>${Math.round(value / total * 100)}%</small></span></button>`).join('');
   const expenses = (state.spending || []).filter((item) => item.mesRef === month && ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
-}
-
-function boxRing(percent) {
-  const radius = 22;
-  const circumference = 2 * Math.PI * radius;
-  const offset = circumference * (1 - Math.min(100, Math.max(0, percent)) / 100);
-  return `<span class="box-ring" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="${radius}" class="ring-track"/><circle cx="26" cy="26" r="${radius}" class="ring-fill" stroke-dasharray="${circumference.toFixed(1)}" stroke-dashoffset="${offset.toFixed(1)}"/></svg><b>${Math.round(percent)}%</b></span>`;
 }
 
 function projectionText(projection) {
@@ -324,13 +290,17 @@ function renderBoxes(boxes) {
   document.querySelector('#boxes-total').textContent = money(total);
   const subtitle = document.querySelector('#boxes-subtitle');
   if (subtitle) subtitle.textContent = boxes.length ? `${boxes.length} ${boxes.length === 1 ? 'caixinha' : 'caixinhas'} · ${goals > 0 ? Math.round(total / goals * 100) : 0}% das metas` : '';
+  // Formato orçamento: valor em destaque, barra grossa com % e "quanto falta".
   elements.boxes.innerHTML = boxes.length ? boxes.map((box) => {
     const name = escapeHtml(box.nome);
-    const reached = box.meta > 0 && ((box.progresso || 0) >= 100 || box.saldo >= box.meta);
+    const progresso = Math.min(100, Math.round(box.progresso || 0));
+    const reached = box.meta > 0 && (progresso >= 100 || box.saldo >= box.meta);
     const saveButton = reached
       ? `<button type="button" class="box-save box-done" disabled aria-label="Meta de ${name} atingida">Concluída</button>`
       : `<button type="button" class="box-save" data-save-box="${name}">Guardar</button>`;
-    return `<article class="box-item"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}">${boxRing(box.progresso || 0)}<span class="box-info"><strong>${name}</strong><span>${money(box.saldo)} de ${money(box.meta)}</span><small>${escapeHtml(projectionText(box.projection))}</small></span></button>${saveButton}<button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></article>`;
+    const missing = Math.max(0, (box.meta || 0) - (box.saldo || 0));
+    const note = reached ? 'Meta batida' : missing > 0 ? `Falta ${money(missing)}` : '';
+    return `<article class="box-item ${reached ? 'complete' : ''}"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}"><span class="box-headline"><strong>${name}</strong><span class="box-percent">${progresso}%</span></span><span class="box-value">${money(box.saldo)}<small> de ${money(box.meta)}</small></span><span class="box-bar" role="progressbar" aria-valuenow="${progresso}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progresso}%"></i></span><small class="box-note">${note ? `${note} · ` : ''}${escapeHtml(projectionText(box.projection))}</small></button><span class="box-actions">${saveButton}<button type="button" class="box-more" data-box-plan="${name}" aria-label="Planejar, histórico e meta de ${name}">›</button></span></article>`;
   }).join('') : '<div class="check-empty"><p>Nenhuma caixinha configurada.</p></div>';
   const favoriteList = document.querySelector('#favorite-box-list');
   if (favoriteList) favoriteList.innerHTML = '';

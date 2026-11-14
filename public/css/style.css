@@ -434,6 +434,28 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
    com barra cheia não podem vazar para cima e colidir com a legenda. */
 .period-bars.duo{height:210px;padding-top:48px}
 @media(max-width:650px){.period-bars.duo{height:185px;padding-top:42px}}
+
+/* Refactor de layout: categorias como ranking */
+.category-row-btn{display:grid;grid-template-columns:minmax(88px,1fr) minmax(0,1.1fr) auto;gap:10px 12px;padding:16px 0;align-items:center}
+.category-row-btn .bar-track{height:9px;border-radius:6px}
+.category-value{display:grid;justify-items:end;gap:2px;font:700 15px var(--font-display);white-space:nowrap}
+.category-value small{margin:0;color:var(--muted);font:600 10px var(--font-body)}
+
+/* Refactor de layout: caixinhas no formato orçamento (o width:100% do botão
+   dentro de linha flex era o que estourava a largura do celular) */
+.box-item{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:12px;padding:18px;border:1px solid var(--line);border-radius:18px}
+.box-item.complete .box-bar i{background:#1c7a52}
+.box-item .box-top{display:grid;gap:10px;padding:0;min-width:0}
+.box-headline{display:flex;align-items:baseline;justify-content:space-between;gap:10px;min-width:0}
+.box-headline strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 15px var(--font-display)}
+.box-percent{color:var(--muted);font:700 12px var(--font-display);white-space:nowrap}
+.box-value{font:700 24px var(--font-display)}
+.box-value small{color:var(--muted);font:600 12px var(--font-body)}
+.box-bar{display:block;height:9px;border-radius:6px;background:#15251f;overflow:hidden}
+.box-bar i{display:block;height:100%;min-width:0;border-radius:6px;background:var(--green)}
+.box-note{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:11px}
+.box-actions{display:grid;justify-items:end;gap:8px}
+.box-item .box-save{width:auto;margin-top:0}
 .period-bars.duo .period-fill{background:#c05a47}
 .period-bars.duo .period-fill.income{background:var(--green)}
 .period-bars.duo .period-bar.current .period-fill{background:#c05a47;box-shadow:none}
