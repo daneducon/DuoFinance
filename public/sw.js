@@ -1,5 +1,5 @@
-const CACHE = 'duofinance-v56';
-const ASSETS = ['/', '/login', '/css/style.css?v=56', '/js/app.js?v=56', '/js/login.js?v=20', '/js/auth.js', '/js/api.js?v=46', '/js/demo.js', '/js/storage.js', '/assets/icon.svg', '/manifest.json'];
+const CACHE = 'duofinance-v57';
+const ASSETS = ['/', '/login', '/css/style.css?v=57', '/js/app.js?v=56', '/js/login.js?v=20', '/js/auth.js', '/js/api.js?v=46', '/js/demo.js', '/js/storage.js', '/assets/icon.svg', '/manifest.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));

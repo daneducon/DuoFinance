@@ -421,7 +421,8 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 
 /* Sprint 5: barras duplas receita x despesa no comparativo de 3 meses */
 .period-tracks{display:flex;align-items:flex-end;justify-content:center;gap:3px;height:100%}
-.period-tracks .period-fill{width:min(12px,60%)}
+.period-tracks .period-track{flex:0 0 14px;height:100%}
+.period-tracks .period-fill{width:100%}
 .period-fill.income{background:var(--green)}
 .chart-legend{display:flex;justify-content:flex-end;gap:14px;margin:0 2px 8px;color:var(--muted);font-size:10px}
 .chart-legend i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:5px;vertical-align:-1px}
