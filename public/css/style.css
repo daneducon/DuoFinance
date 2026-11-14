@@ -435,11 +435,13 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .period-bars.duo{height:210px;padding-top:48px}
 @media(max-width:650px){.period-bars.duo{height:185px;padding-top:42px}}
 
-/* Refactor de layout: categorias como ranking */
-.category-row-btn{display:grid;grid-template-columns:minmax(88px,1fr) minmax(0,1.1fr) auto;gap:10px 12px;padding:16px 0;align-items:center}
+/* Refactor de layout: categorias como ranking — em 2 linhas, porque 3 colunas
+   não cabem no mobile: nome à esquerda, valor + % à direita, barra full-width. */
+.category-row-btn{display:grid;grid-template-columns:1fr;gap:8px;padding:15px 0;align-items:center}
+.category-row-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-width:0}
 .category-row-btn .bar-track{height:9px;border-radius:6px}
-.category-value{display:grid;justify-items:end;gap:2px;font:700 15px var(--font-display);white-space:nowrap}
-.category-value small{margin:0;color:var(--muted);font:600 10px var(--font-body)}
+.category-value{white-space:nowrap;font:700 15px var(--font-display)}
+.category-value small{margin-left:6px;color:var(--muted);font:600 11px var(--font-body)}
 
 /* Refactor de layout: caixinhas como grid de cards, 2 por linha (estilo
    Monthly Budgets das referências). O card inteiro abre o sheet. */

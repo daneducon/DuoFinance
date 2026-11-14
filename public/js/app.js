@@ -272,7 +272,7 @@ function renderCategoryChart(categoryTotals, month) {
   elements.chartEmpty.hidden = categories.length > 0;
   // Ranking no estilo das referências: nome, barra grossa colorida por posição e valor + % à direita.
   const palette = ['#27df8b', '#5cb8cc', '#e99d7d', '#f2c46d', '#b48ce0', '#7fae9c'];
-  elements.chart.innerHTML = categories.map(([name, value], index) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-name">${escapeHtml(name)}</span><span class="bar-track"><span class="bar" style="width:${Math.max(3, Math.round(value / total * 100))}%;background:${palette[index % palette.length]}"></span></span><span class="category-value"><strong>${money(value)}</strong><small>${Math.round(value / total * 100)}%</small></span></button>`).join('');
+  elements.chart.innerHTML = categories.map(([name, value], index) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-row-top"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span></span><span class="bar-track"><span class="bar" style="width:${Math.max(3, Math.round(value / total * 100))}%;background:${palette[index % palette.length]}"></span></span></button>`).join('');
   const expenses = (state.spending || []).filter((item) => item.mesRef === month && ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
