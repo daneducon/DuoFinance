@@ -4,6 +4,17 @@ import { demoData } from './demo.js';
 import { macroCategory, MACRO_CATEGORIES } from './categories.mjs';
 export { macroCategory, MACRO_CATEGORIES };
 
+// Depois de uma gravação, a próxima leitura pede dados frescos (?fresh=1), sem cache do servidor.
+let freshReadPending = false;
+
+function freshParam() {
+  return freshReadPending ? '&fresh=1' : '';
+}
+
+export function markFreshReadDone() {
+  freshReadPending = false;
+}
+
 async function request(path, options = {}) {
   const current = session();
   const response = await fetch(path, {
@@ -17,6 +28,7 @@ async function request(path, options = {}) {
     throw new Error('Sua sessão expirou.');
   }
   if (!response.ok) throw new Error(body.error || 'Não foi possível concluir a operação.');
+  if (options.method && options.method !== 'GET') freshReadPending = true;
   return body;
 }
 
@@ -129,7 +141,7 @@ export async function getFinances(month) {
   if (session()?.demo) return demoState(month);
   const key = `finances:${month}`;
   try {
-    const data = await request(`/api/financas?mes=${encodeURIComponent(month)}`);
+    const data = await request(`/api/financas?mes=${encodeURIComponent(month)}${freshParam()}`);
     await cacheSet(key, data);
     return data;
   } catch (error) {
@@ -141,7 +153,7 @@ export async function getFinances(month) {
 
 export async function getCards(month) {
   if (session()?.demo) return demoCards(month);
-  return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}`);
+  return request(`/api/pluggy/cards?mes=${encodeURIComponent(month)}${freshParam()}`);
 }
 
 function shiftMonthKey(month, amount) {
