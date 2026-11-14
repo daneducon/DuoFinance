@@ -73,7 +73,7 @@ async function getFinances(req, res) {
     summary,
     cashFlow: calculateCashFlow(accountingTransactions, month),
     cashCycles: { ...calculateCashCycles(accountingTransactions, month, { today: todayIso() }), freeUntil: freeUntilNextIncome(accountingTransactions, anchorBalance, todayIso()) },
-    analysis: buildAnalysis(spendingTransactions, month, 12)
+    analysis: buildAnalysis([...spendingTransactions, ...manualTransactions.filter((item) => item.tipo === 'Receita')], month, 12)
   });
 }
 
