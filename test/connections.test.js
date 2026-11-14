@@ -32,6 +32,18 @@ test('lista coloca conexões com atenção no topo', () => {
   assert.equal(list[0].id, 'b');
 });
 
+test('saldo da carteira soma so as contas correntes do item', () => {
+  const list = describeConnections([
+    { id: 'a', institution: 'Nu', status: 'UPDATED', lastUpdatedAt: '2026-11-08T10:00:00Z' }
+  ], now, [
+    { itemId: 'a', type: 'BANK', balance: 1200.5 },
+    { itemId: 'a', type: 'CREDIT', balance: -300 },
+    { itemId: 'b', type: 'BANK', balance: 999 }
+  ]);
+  assert.equal(list[0].balance, 1200.5);
+  assert.equal(list[0].accounts, 2);
+});
+
 const { institutionName } = require('../lib/connections');
 
 test('conector genérico usa o nome do banco nas contas', () => {

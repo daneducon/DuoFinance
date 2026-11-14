@@ -72,8 +72,21 @@ function demoState(month) {
     spendingTransactions: saved.transactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo) && !saved.configuration.caixinhas.some((box) => sameLabel(box.nome, item.origem))),
     summary: demoSummary(transactions, saved.configuration.caixinhas, saved.transactions),
     cashFlow: demoCashFlow(saved.transactions, month),
-    analysis: demoAnalysis(saved.transactions, month)
+    analysis: demoAnalysis(saved.transactions, month),
+    connections: demoConnections()
   };
+}
+
+// Carteiras fake do modo demo: duas saudáveis e uma com login recusado,
+// para validar os dois estados do carrossel sem Pluggy.
+function demoConnections() {
+  const now = new Date().toISOString();
+  const recent = new Date(Date.now() - 2 * 3600000).toISOString();
+  return [
+    { id: 'demo-nu', institution: 'Nu', holder: 'Ele', status: 'UPDATED', lastUpdatedAt: recent, needsAttention: false, stale: false, ok: true, message: '', balance: 2841.75, accounts: 1 },
+    { id: 'demo-itau', institution: 'Itaú', holder: 'Ela', status: 'UPDATED', lastUpdatedAt: now, needsAttention: false, stale: false, ok: true, message: '', balance: 1530.2, accounts: 2 },
+    { id: 'demo-inter', institution: 'Inter', holder: 'Nós', status: 'LOGIN_ERROR', lastUpdatedAt: new Date(Date.now() - 72 * 3600000).toISOString(), needsAttention: true, stale: false, ok: false, message: 'Login recusado. Conecte de novo no banco.', balance: 0, accounts: 1 }
+  ];
 }
 
 function demoCashFlow(transactions, month) {

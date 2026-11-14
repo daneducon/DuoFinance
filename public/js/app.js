@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=44';
+import { getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=45';
 
 const currentSession = requireSession();
 const state = {
@@ -792,7 +792,8 @@ function freshnessLabel(iso) {
   return `Atualizado ${day === today ? 'hoje' : `em ${day}`} às ${hour}`;
 }
 
-// Lista das conexões bancárias. Só aparece se houver conexões; o que precisa de atenção vem primeiro.
+// Carteiras conectadas: carrossel com o saldo de cada banco e o estado da conexão.
+// O que precisa de atenção vem primeiro (ordenação já vem do backend).
 function renderConnections() {
   const section = document.querySelector('#connections');
   const connections = state.connections || [];
@@ -805,9 +806,9 @@ function renderConnections() {
     : stale ? `${stale} desatualizada${stale > 1 ? 's' : ''}` : 'Tudo certo';
   document.querySelector('#connections-list').innerHTML = connections.map((item) => {
     const tone = item.needsAttention ? 'attention' : item.stale ? 'stale' : '';
-    const name = `${item.institution}${item.holder ? ` · ${item.holder}` : ''}`;
     const meta = item.message || freshnessLabel(item.lastUpdatedAt);
-    return `<li class="${tone}"><span class="connection-dot ${tone}" aria-hidden="true"></span><div><span class="connection-name">${escapeHtml(name)}</span><span class="connection-meta">${escapeHtml(meta)}</span></div></li>`;
+    const balance = Number.isFinite(item.balance) && item.accounts > 0 ? money(item.balance) : '—';
+    return `<div class="wallet-card ${tone}" role="listitem"><span class="wallet-top"><span class="connection-dot ${tone}" aria-hidden="true"></span><span class="wallet-name">${escapeHtml(item.institution)}</span></span><strong class="wallet-balance">${balance}</strong><span class="wallet-meta">${escapeHtml(item.holder ? `${responsibleName(item.holder)} · ` : '')}${escapeHtml(meta)}</span></div>`;
   }).join('');
 }
 
