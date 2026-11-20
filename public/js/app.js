@@ -37,7 +37,10 @@ updateMonthLabel();
 document.querySelector('#user-email').textContent = currentSession?.user?.email || 'Conta compartilhada';
 renderGreeting();
 
-document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => openForm()));
+document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => {
+  const preset = { despesa: 'Despesa', receita: 'Receita', caixinha: 'Depósito' }[button.dataset.openForm];
+  openForm(null, preset || null);
+}));
 document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => elements.dialog.close()));
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
@@ -135,7 +138,7 @@ async function load() {
 
 function render() {
   const summary = state.summary || calculateSummary();
-  document.querySelector('#forecast-balance').textContent = money(summary.saldoPrevisto);
+  document.querySelector('#forecast-balance').innerHTML = moneyMarkup(summary.saldoPrevisto);
   document.querySelector('#income-total').textContent = money(summary.receitas);
   document.querySelector('#expense-total').textContent = money(summary.despesas);
   document.querySelector('#receivable-total').textContent = money(summary.aReceber);
@@ -225,7 +228,7 @@ function renderAnalysis() {
   const previous = all[index - 1];
   const current = selected.total || 0;
   document.querySelector('#analysis-month-label').textContent = `Gasto em ${fullMonthLabel(selected.month)}`;
-  document.querySelector('#analysis-total').textContent = money(current);
+  document.querySelector('#analysis-total').innerHTML = moneyMarkup(current);
   const change = previous?.total > 0 ? Math.round((current - previous.total) / previous.total * 100) : null;
   const incomeChange = previous?.receitas > 0 ? Math.round(((selected.receitas || 0) - previous.receitas) / previous.receitas * 100) : null;
   document.querySelectorAll('[data-period]').forEach((button) => button.classList.toggle('active', Number(button.dataset.period) === (state.analysisPeriod || 3)));
@@ -265,15 +268,38 @@ function handleAnalysisBar(event) {
   renderAnalysis();
 }
 
+// Identidade visual por categoria: ícone e cor fixos (não por posição do ranking).
+const CATEGORY_STYLE = {
+  'Moradia e contas': ['⌂', '#5cb8cc'],
+  'Alimentação': ['🍽', '#f2c46d'],
+  'Transporte': ['🚗', '#7fae9c'],
+  'Saúde e bem-estar': ['✚', '#ff806f'],
+  'Assinaturas e serviços digitais': ['▶', '#b48ce0'],
+  'Educação': ['✎', '#5cb8cc'],
+  'Lazer e viagens': ['✈', '#e99d7d'],
+  'Compras': ['◆', '#b48ce0'],
+  'Dívidas, taxas e impostos': ['▤', '#f2c46d'],
+  'Transferências': ['⇄', '#8eb69b'],
+  'Cartão de crédito': ['▭', '#27df8b'],
+  'Casal e eventos': ['♥', '#e99d7d']
+};
+function categoryStyle(name) {
+  const [icon, color] = CATEGORY_STYLE[name] || ['•', '#7fae9c'];
+  return `<span class="category-icon" style="background:${color}22;color:${color}">${icon}</span>`;
+}
+
 // Categorias do mês selecionado, com o mesmo critério dos totais da análise.
 function renderCategoryChart(categoryTotals, month) {
   const categories = Object.entries(categoryTotals).filter((entry) => entry[1] > 0).sort((a, b) => b[1] - a[1]);
   const total = categories.reduce((sum, [, value]) => sum + value, 0) || 1;
   elements.chart.hidden = categories.length === 0;
   elements.chartEmpty.hidden = categories.length > 0;
-  // Ranking no estilo das referências: nome, barra grossa colorida por posição e valor + % à direita.
-  const palette = ['#27df8b', '#5cb8cc', '#e99d7d', '#f2c46d', '#b48ce0', '#7fae9c'];
-  elements.chart.innerHTML = categories.map(([name, value], index) => `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-row-top"><span class="category-name">${escapeHtml(name)}</span><span class="category-value">${money(value)}<small>${Math.round(value / total * 100)}%</small></span></span><span class="bar-track"><span class="bar" style="width:${Math.max(3, Math.round(value / total * 100))}%;background:${palette[index % palette.length]}"></span></span></button>`).join('');
+  // Ranking no estilo das referências: ícone + nome, valor + % e barra full-width.
+  elements.chart.innerHTML = categories.map(([name, value]) => {
+    const [, color] = CATEGORY_STYLE[name] || ['•', '#7fae9c'];
+    const percent = Math.round(value / total * 100);
+    return `<button type="button" class="category-row-btn" data-category="${escapeHtml(name)}"><span class="category-row-top"><span class="category-identity">${categoryStyle(name)}<span class="category-name">${escapeHtml(name)}</span></span><span class="category-value">${money(value)}<small>${percent}%</small></span></span><span class="bar-track"><span class="bar" style="width:${Math.max(3, percent)}%;background:${color}"></span></span></button>`;
+  }).join('');
   const expenses = (state.spending || []).filter((item) => item.mesRef === month && ['Despesa', 'Pagamento Fatura'].includes(item.tipo)).length;
   document.querySelector('#expense-count').textContent = `${expenses} ${expenses === 1 ? 'lançamento' : 'lançamentos'}`;
 }
@@ -288,7 +314,7 @@ function projectionText(projection) {
 function renderBoxes(boxes) {
   const total = boxes.reduce((sum, box) => sum + box.saldo, 0);
   const goals = boxes.reduce((sum, box) => sum + (box.meta || 0), 0);
-  document.querySelector('#boxes-total').textContent = money(total);
+  document.querySelector('#boxes-total').innerHTML = moneyMarkup(total);
   const subtitle = document.querySelector('#boxes-subtitle');
   if (subtitle) subtitle.textContent = boxes.length ? `${boxes.length} ${boxes.length === 1 ? 'caixinha' : 'caixinhas'} · ${goals > 0 ? Math.round(total / goals * 100) : 0}% das metas` : '';
   // Formato orçamento em grid: 2 cards por linha, card inteiro abre o sheet.
@@ -1445,6 +1471,12 @@ function notify(message, error = false, action = null) {
   }, action ? 4000 : 3500);
 }
 function money(value) { return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0); }
+// Valores grandes: parte inteira em destaque e centavos atenuados (padrão das referências).
+function moneyMarkup(value) {
+  const text = money(value);
+  const match = text.match(/^(.*\d)(,\d{2})$/);
+  return match ? `${escapeHtml(match[1])}<span class="cents">${match[2]}</span>` : escapeHtml(text);
+}
 function fullDate(value) { return new Intl.DateTimeFormat('pt-BR').format(new Date(`${value}T12:00:00`)); }
 function shortDate(value) { return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: '2-digit' }).format(new Date(`${value}T12:00:00`)); }
 function monthLabel(value) { return new Intl.DateTimeFormat('pt-BR', { month: 'short', year: '2-digit' }).format(new Date(`${value}-01T12:00:00`)).replace('.', ''); }
