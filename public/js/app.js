@@ -1378,10 +1378,25 @@ function accountEffect(item) {
 async function generateInsight() {
   const button = document.querySelector('#analyze-button');
   button.disabled = true;
-  button.firstChild.textContent = 'Analisando os dados... ';
-  try { elements.insight.textContent = (await analyze(elements.month.value)).insight; }
-  catch (error) { notify(error.message, true); }
-  finally { button.disabled = false; button.firstChild.textContent = 'Analisar dados com IA '; }
+  button.firstChild.textContent = 'Analisando...';
+  const month = elements.month.value;
+  try {
+    // Loop 1 — Percepção resumida do mês
+    const r1 = await analyze(month);
+    const perception = r1.insight || 'Sem percepção gerada.';
+    // Loop 2 — Provocação / pergunta para o casal (demo ou vinda do perception em produção)
+    const provocacao = session()?.demo
+      ? 'Qual o maior gasto que vocês poderiam reduzir ou reprogramar esta semana?'
+      : '';
+    // Loop 3 — Agrupador final: une percepção + provocação em um bloco "Analisar mês"
+    const together = perception + (provocacao ? '\n\n' + provocacao : '');
+    elements.insight.textContent = together;
+  } catch (error) {
+    notify(error.message, true);
+  } finally {
+    button.disabled = false;
+    button.firstChild.textContent = 'Analisar dados com IA ';
+  }
 }
 
 function renderMentor() {
