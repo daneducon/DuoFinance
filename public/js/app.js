@@ -375,9 +375,12 @@ function openBoxSheet(name) {
   const sheet = document.querySelector('#action-sheet');
   sheet.dataset.id = '';
   sheet.dataset.box = box.nome;
-  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(box.nome)}</p><p class="sheet-sub">${money(box.saldo)} de ${money(box.meta)} · ${Math.round(box.progresso || 0)}%</p>
-    <p class="box-sheet-projection">${escapeHtml(projectionText(box.projection))}</p>
-    <div class="box-target"><label class="field"><span>Quero chegar à meta até</span><input type="month" id="box-target-month" min="${shiftMonthKeyLocal(baseMonth, 1)}" value="${defaultTarget}"></label><p id="box-target-result"></p></div>
+  const progress = Math.min(100, Math.max(0, Math.round(box.progresso || 0)));
+  sheet.innerHTML = `<div class="sheet-body box-sheet"><span class="sheet-handle" aria-hidden="true"></span>
+    <header class="box-sheet-head"><p class="sheet-title">${escapeHtml(box.nome)}</p><p class="sheet-sub">${money(box.saldo)} de ${money(box.meta)} · ${progress}%</p>
+    <div class="box-sheet-progress" role="img" aria-label="${progress}% da meta"><span style="width:${progress}%"></span></div>
+    <p class="box-sheet-projection">${escapeHtml(projectionText(box.projection))}</p></header>
+    <section class="box-target"><label class="field"><span>Quero chegar à meta até</span><input type="month" id="box-target-month" min="${shiftMonthKeyLocal(baseMonth, 1)}" value="${defaultTarget}"></label><p id="box-target-result" aria-live="polite"></p></section>
     <div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">${icon('plus')}</span>Guardar</button><button type="button" data-sheet-action="box-history"><span aria-hidden="true">${icon('history')}</span>Ver histórico</button><button type="button" data-sheet-action="box-edit"><span aria-hidden="true">${icon('pencil')}</span>Editar meta</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
   const input = sheet.querySelector('#box-target-month');
   const result = sheet.querySelector('#box-target-result');
