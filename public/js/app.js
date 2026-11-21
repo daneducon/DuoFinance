@@ -102,6 +102,7 @@ elements.form.addEventListener('submit', saveTransaction);
 elements.boxForm.addEventListener('submit', saveBox);
 elements.billForm.addEventListener('submit', saveBill);
 elements.form.elements.tipo.addEventListener('change', () => { enforceDepositStatus(); syncDepositFields(); });
+elements.form.elements.recorrente.addEventListener('change', syncRecurrenceField);
 elements.form.elements.categoria.addEventListener('change', toggleCardField);
 const boxSelectEl = document.querySelector('#box-select');
 if (boxSelectEl) boxSelectEl.addEventListener('change', () => {});
@@ -1103,6 +1104,7 @@ function openForm(transaction = null, presetType = null) {
   enforceDepositStatus();
   toggleCardField();
   syncDepositFields();
+  syncRecurrenceField();
   elements.dialog.showModal();
   setTimeout(() => elements.form.elements.descricao.focus(), 0);
 }
@@ -1122,7 +1124,8 @@ async function saveTransaction(event) {
     id: existingId, tipo: form.get('tipo'), descricao: form.get('descricao').trim(), valor: Number(form.get('valor')),
     data: form.get('data'), dataPg: status === 'Pago' ? form.get('data') : '', mesRef: form.get('data').slice(0, 7),
     status, categoria: isDeposit ? caixinha : String(form.get('categoria') || '').trim(), responsavel: form.get('responsavel'), parcelaAtual: 1, totalParcelas: 1,
-    idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem'), cartao: form.get('cartao') || ''
+    idParcelamento: '', recorrente: form.get('recorrente') === 'on', origem: form.get('origem'), cartao: form.get('cartao') || '',
+    recorrencia: !existingId && form.get('recorrente') === 'on' ? Number(form.get('recorrencia')) || 1 : 1
   };
   const action = existingId ? 'update' : 'create';
   const previous = existingId ? state.transactions.find((item) => item.id === existingId) : null;
@@ -1168,6 +1171,15 @@ function toggleCardField() {
   document.querySelector('#date-label').textContent = isCardBill ? 'Vencimento' : 'Data';
   elements.form.elements.cartao.required = isCardBill;
   if (!isCardBill) elements.form.elements.cartao.value = '';
+}
+
+// Repetição só para lançamentos novos: ao editar, o campo some e o lançamento continua único.
+function syncRecurrenceField() {
+  const field = document.querySelector('#recurrence-field');
+  const isNew = !elements.form.elements.id.value;
+  const on = elements.form.elements.recorrente.checked && isNew;
+  field.hidden = !on;
+  elements.form.elements.recorrencia.required = on;
 }
 
 function syncDepositFields() {

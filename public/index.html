@@ -196,6 +196,7 @@
         <label class="field full"><span>Origem</span><select name="origem" id="origin-select"></select></label>
         <label class="check-field full"><input name="recorrente" type="checkbox" aria-label="Lançamento recorrente"><span>Este lançamento é
             recorrente</span></label>
+        <label class="field" id="recurrence-field" hidden><span>Repetir por (meses)</span><input name="recorrencia" type="number" min="2" max="60" step="1" value="12"></label>
       </div>
       <div class="dialog-actions"><button type="button" class="button ghost" data-close-dialog>Cancelar</button><button
           class="button primary" type="submit" id="save-button">Salvar</button></div>
@@ -286,7 +287,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
-  <script type="module" src="/js/app.js?v=74"></script>
+  <script type="module" src="/js/app.js?v=75"></script>
 </body>
 
 </html>

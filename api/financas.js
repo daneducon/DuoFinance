@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
+const { expandRecurrence, withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 const { liveBankBalances } = require('../lib/live-balance');
 const { describeConnections } = require('../lib/connections');
@@ -94,8 +94,9 @@ async function mutateFinances(req, res) {
   if (String(transaction?.id || id || '').startsWith('pluggy:')) return send(res, 403, { error: 'Lancamentos sincronizados nao podem ser alterados.' });
   if (action === 'create') {
     const item = validateTransaction({ ...transaction, id: randomUUID() });
-    await sheets.appendTransaction(toSheetRow(item));
-    return send(res, 201, { transaction: item });
+    const items = expandRecurrence(item, transaction?.recorrencia, randomUUID);
+    await sheets.appendTransactions(items.map(toSheetRow));
+    return send(res, 201, { transaction: items[0], created: items.length });
   }
   if (action === 'update') {
     const item = validateTransaction(transaction || {});
