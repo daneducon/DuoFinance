@@ -1553,6 +1553,8 @@ function calculateBoxBase(boxes, transactions) {
 }
 
 function applyBoxContribution(boxes, item, direction) {
+  // Movimentos futuros são planejados e não entram no saldo até a data chegar.
+  if (item.data && item.data > todayText()) return;
   const isDeposit = ['Depósito', 'Depósito Caixinha'].includes(item.tipo);
   const box = boxes.find((entry) => sameLabel(entry.nome, item.origem) || (isDeposit && sameLabel(entry.nome, item.categoria)));
   if (!box) return;
