@@ -111,7 +111,7 @@ elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
 elements.boxDialog.addEventListener('click', (event) => { if (event.target === elements.boxDialog) elements.boxDialog.close(); });
 elements.billDialog.addEventListener('click', (event) => { if (event.target === elements.billDialog) elements.billDialog.close(); });
-document.querySelector('#new-box-button').addEventListener('click', openNewBox);
+document.querySelector('#add-box-ghost').addEventListener('click', openNewBox);
 document.querySelectorAll('[data-close-box-dialog]').forEach((button) => button.addEventListener('click', () => elements.boxDialog.close()));
 document.querySelectorAll('[data-close-bill-dialog]').forEach((button) => button.addEventListener('click', () => elements.billDialog.close()));
 window.addEventListener('hashchange', () => switchTab(location.hash.slice(1), false));
