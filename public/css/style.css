@@ -358,7 +358,18 @@ dialog.sheet[open]{animation:sheet-in .2s ease}
 .sheet-list-row>div span{margin-top:var(--space-1);color:var(--muted);font-size:var(--text-sm)}
 .sheet-list-row>strong{font:700 var(--text-base) var(--font-display);white-space:nowrap}
 .sheet-section{margin:var(--space-5) 0 var(--space-2);color:var(--muted);font-size:var(--text-md);font-weight:700}
-.box-sheet-projection{margin:calc(-1*var(--space-2)) 0 var(--space-4);color:var(--green-soft);font-size:var(--text-md)}
+.box-sheet-projection{margin:0;color:var(--green-soft);font-size:var(--text-md);line-height:1.5}
+.box-sheet-head{margin-bottom:var(--space-5)}
+.box-sheet-head .sheet-sub{margin-bottom:var(--space-3)}
+.box-sheet-progress{height:8px;margin-bottom:var(--space-3);border-radius:var(--radius-pill);background:var(--surface-3);overflow:hidden}
+.box-sheet-progress span{display:block;height:100%;border-radius:inherit;background:var(--green)}
+.box-sheet .box-target{margin-bottom:var(--space-5);padding:var(--space-5)}
+.box-sheet .box-target .field span{color:var(--text-soft)}
+.box-sheet .box-target .field input{height:48px}
+.box-sheet .box-target p{min-height:1.5em}
+.box-sheet .sheet-actions{margin-bottom:var(--space-3)}
+.box-sheet .sheet-actions .cancel{border:1px solid var(--line);color:var(--text-soft-2)}
+.box-sheet .sheet-actions .cancel:hover{background:var(--surface-2)}
 .box-target{padding:var(--space-4);border-radius:var(--radius-xl);background:var(--surface-2)}
 .box-target .field input{background:var(--bg)}
 .box-target p{margin:var(--space-3) 0 0;color:var(--text-soft-2);font-size:var(--text-base)}
