@@ -238,6 +238,18 @@ export async function mutate(action, transaction) {
   }
 }
 
+export async function createBox(box) {
+  const payload = { action: 'createBox', box };
+  if (session()?.demo) {
+    const saved = JSON.parse(localStorage.getItem('duofinance_demo_data') || 'null') || demoData();
+    if (saved.configuration.caixinhas.some((item) => sameLabel(item.nome, box.nome))) throw new Error('Já existe uma caixinha com esse nome.');
+    saved.configuration.caixinhas = [...saved.configuration.caixinhas, { nome: box.nome, meta: box.meta, favorito: false }];
+    localStorage.setItem('duofinance_demo_data', JSON.stringify(saved));
+    return { demo: true };
+  }
+  return request('/api/financas', { method: 'POST', body: JSON.stringify(payload) });
+}
+
 export async function updateBox(box) {
   const payload = { action: 'updateBox', box };
   if (session()?.demo) {

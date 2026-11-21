@@ -568,3 +568,4 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .cards-summary{margin-bottom:var(--space-5)}
 .card-detail{margin-bottom:var(--space-5)}
 .card-expenses-panel{margin-bottom:var(--space-5)}
+.box-list-head{display:flex;justify-content:flex-end;margin-bottom:var(--space-4)}

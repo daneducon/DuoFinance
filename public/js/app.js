@@ -1,5 +1,5 @@
 import { requireSession, clearSession } from './auth.js';
-import { markFreshReadDone, getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
+import { createBox, markFreshReadDone, getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
 import { icon, hydrateIcons } from './icons.js?v=74';
 
 const currentSession = requireSession();
@@ -111,6 +111,7 @@ elements.boxes.addEventListener('click', handleBoxAction);
 elements.dialog.addEventListener('click', (event) => { if (event.target === elements.dialog) elements.dialog.close(); });
 elements.boxDialog.addEventListener('click', (event) => { if (event.target === elements.boxDialog) elements.boxDialog.close(); });
 elements.billDialog.addEventListener('click', (event) => { if (event.target === elements.billDialog) elements.billDialog.close(); });
+document.querySelector('#add-box-ghost').addEventListener('click', openNewBox);
 document.querySelectorAll('[data-close-box-dialog]').forEach((button) => button.addEventListener('click', () => elements.boxDialog.close()));
 document.querySelectorAll('[data-close-bill-dialog]').forEach((button) => button.addEventListener('click', () => elements.billDialog.close()));
 window.addEventListener('hashchange', () => switchTab(location.hash.slice(1), false));
@@ -421,9 +422,18 @@ function shiftMonthKeyLocal(month, amount) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function openNewBox() {
+  elements.boxForm.reset();
+  elements.boxForm.elements.currentName.value = '';
+  document.querySelector('#box-dialog-title').textContent = 'Nova caixinha';
+  elements.boxDialog.showModal();
+  setTimeout(() => elements.boxForm.elements.nome.focus(), 0);
+}
+
 function openBoxEditor(name) {
   const box = state.configuration.caixinhas.find((item) => item.nome === name);
   if (!box) return;
+  document.querySelector('#box-dialog-title').textContent = 'Editar caixinha';
   elements.boxForm.elements.currentName.value = box.nome;
   elements.boxForm.elements.nome.value = box.nome;
   elements.boxForm.elements.meta.value = box.meta;
@@ -449,6 +459,13 @@ async function saveBox(event) {
   const button = document.querySelector('#save-box-button');
   button.disabled = true;
   try {
+    if (!box.currentName) {
+      await createBox({ nome: box.nome, meta: box.meta });
+      elements.boxDialog.close();
+      notify('Caixinha criada.');
+      await load();
+      return;
+    }
     const result = await updateBox(box);
     elements.boxDialog.close();
     if (result.queued) {
@@ -838,6 +855,7 @@ function handleFabAction(event) {
   if (!action) return;
   closeFab();
   if (action === 'sync') return synchronizePluggy();
+  if (action === 'nova-caixinha') return openNewBox();
   openForm(null, { despesa: 'Despesa', receita: 'Receita', caixinha: 'Depósito' }[action]);
 }
 

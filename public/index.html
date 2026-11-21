@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=77">
+  <link rel="stylesheet" href="/css/style.css?v=78">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -136,6 +136,7 @@
           <p class="home-progress-label" id="boxes-subtitle"></p>
         </section>
         <div class="box-list" id="box-grid"></div>
+        <button type="button" class="add-ghost" id="add-box-ghost"><span data-icon="plus"></span>Adicionar caixinha</button>
       </section>
 
       <section class="tab-view" data-view="cards">
@@ -208,7 +209,7 @@
       <div class="dialog-head">
         <div>
           <p class="eyebrow">OBJETIVO</p>
-          <h2>Editar caixinha</h2>
+          <h2 id="box-dialog-title">Editar caixinha</h2>
         </div><button type="button" class="icon-button" data-close-box-dialog aria-label="Fechar"><span data-icon="x"></span></button>
       </div>
       <input type="hidden" name="currentName">
@@ -281,13 +282,14 @@
       <button type="button" role="menuitem" data-fab-action="despesa"><span data-icon="minus"></span>Nova despesa</button>
       <button type="button" role="menuitem" data-fab-action="receita"><span data-icon="plus"></span>Nova receita</button>
       <button type="button" role="menuitem" data-fab-action="caixinha"><span data-icon="piggy-bank"></span>Guardar na caixinha</button>
+      <button type="button" role="menuitem" data-fab-action="nova-caixinha"><span data-icon="plus"></span>Nova caixinha</button>
       <button type="button" role="menuitem" data-fab-action="sync" id="fab-sync"><span data-icon="refresh-cw"></span>Sincronizar bancos</button>
     </div>
     <button type="button" class="fab-button" id="fab-button" aria-label="Ações rápidas" aria-haspopup="menu" aria-expanded="false" aria-controls="fab-menu"><span data-icon="plus"></span></button>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
-  <script type="module" src="/js/app.js?v=76"></script>
+  <script type="module" src="/js/app.js?v=78"></script>
 </body>
 
 </html>

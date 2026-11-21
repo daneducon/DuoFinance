@@ -111,6 +111,16 @@ async function mutateFinances(req, res) {
     await sheets.deleteTransaction(row);
     return send(res, 200, { deleted: true });
   }
+  if (action === 'createBox') {
+    const nome = String(box?.nome || '').trim();
+    const meta = Number(box?.meta) || 0;
+    if (!nome || nome.length > 60) return send(res, 400, { error: 'Informe um nome valido para a caixinha.' });
+    if (meta < 0) return send(res, 400, { error: 'A meta nao pode ser negativa.' });
+    const configuration = await sheets.getConfiguration();
+    if (configuration.caixinhas.some((entry) => entry.nome.toLocaleLowerCase('pt-BR') === nome.toLocaleLowerCase('pt-BR'))) return send(res, 409, { error: 'Ja existe uma caixinha com esse nome.' });
+    await sheets.appendBox({ nome, meta });
+    return send(res, 201, { box: { nome, meta } });
+  }
   if (action === 'updateBox') {
     const item = validateBox(box || {});
     const configuration = await sheets.getConfiguration();
