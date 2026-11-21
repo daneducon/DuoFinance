@@ -436,7 +436,7 @@ body.is-loading .tab-view{opacity:.75;transition:opacity .2s ease}
 .row-avatar .av-t{background:#704d48;color:#ffe3d5}
 .row-avatar i+i{margin-left:calc(-1*var(--space-2));box-shadow:0 0 0 2px var(--surface)}
 .urgent-bill{display:flex;align-items:center;gap:var(--space-3);margin:var(--space-2) 0 var(--space-1);padding:var(--space-4);border-radius:var(--radius-xl);background:#eaf6ef;color:#06231a;border:1px solid #27df8b66}
-.urgent-bill .status-toggle{border-color:#1f8a5c;color:#1f8a5c}
+.urgent-bill .status-toggle{border-color:#2ea86e;color:#2ea86e}
 .urgent-bill.overdue{background:#f8e5df;border-color:#6b2f27}
 .urgent-bill.overdue .status-toggle{border-color:#8a3a2b;color:#8a3a2b}
 .urgent-info{display:grid;gap:var(--space-1);min-width:0;flex:1}
