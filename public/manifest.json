@@ -4,8 +4,8 @@
   "description": "Clareza financeira para construir a dois.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#051f20",
-  "theme_color": "#051f20",
+  "background_color": "#060f0d",
+  "theme_color": "#060f0d",
   "lang": "pt-BR",
   "icons": [
     {

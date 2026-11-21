@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#051f20">
+  <meta name="theme-color" content="#060f0d">
   <meta name="description" content="Nosso dinheiro: clareza financeira para construir a dois.">
   <link rel="manifest" href="/manifest.json">
   <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=69">
+  <link rel="stylesheet" href="/css/style.css?v=73">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -24,32 +24,16 @@
         <span class="brand-mark">N</span><span>Nosso <span>dinheiro</span></span>
       </a>
       <nav class="nav" aria-label="Navegação principal">
-        <button class="nav-item active" data-tab="general"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="m4 10 8-7 8 7v10H7a3 3 0 0 1-3-3Z" />
-            <path d="M9 20v-7h6v7" />
-          </svg> Geral</button>
-        <button class="nav-item" data-tab="transactions"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M8 6h13M8 12h13M8 18h13" />
-            <path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01" />
-          </svg> Contas</button>
-        <button class="nav-item" data-tab="analysis"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M5 19V9m7 10V5m7 14v-7" />
-            <path d="M3 19h18" />
-          </svg> Análises</button>
-        <button class="nav-item" data-tab="boxes"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="6" width="18" height="12" rx="2" />
-            <circle cx="12" cy="12" r="2.5" />
-            <path d="M7 9H5m14 6h-2" />
-          </svg> Caixinhas</button>
-        <button class="nav-item" data-tab="cards"><svg class="nav-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <rect x="3" y="5" width="18" height="14" rx="2" />
-            <path d="M3 10h18M7 15h3" />
-          </svg> Cartões</button>
+        <button class="nav-item active" data-tab="general"><span class="nav-icon" data-icon="house"></span>Geral</button>
+        <button class="nav-item" data-tab="transactions"><span class="nav-icon" data-icon="receipt-text"></span>Contas</button>
+        <button class="nav-item" data-tab="analysis"><span class="nav-icon" data-icon="chart-column"></span>Análises</button>
+        <button class="nav-item" data-tab="boxes"><span class="nav-icon" data-icon="piggy-bank"></span>Caixinhas</button>
+        <button class="nav-item" data-tab="cards"><span class="nav-icon" data-icon="credit-card"></span>Cartões</button>
       </nav>
       <div class="sidebar-foot">
         <div class="couple-avatar"><span>D</span><span>T</span></div>
         <div><strong>Nosso espaço</strong><small id="user-email">Conta compartilhada</small></div>
-        <button class="icon-button" id="logout-button" title="Sair" aria-label="Sair">↗</button>
+        <button class="icon-button" id="logout-button" title="Sair" aria-label="Sair"><span data-icon="log-out"></span></button>
       </div>
     </aside>
 
@@ -64,10 +48,10 @@
         </div>
         <div class="top-actions">
           <div class="month-navigator" aria-label="Navegação por mês">
-            <button type="button" id="previous-month" aria-label="Mês anterior">‹</button>
+            <button type="button" id="previous-month" aria-label="Mês anterior"><span data-icon="chevron-left"></span></button>
             <label class="month-display" title="Escolher mês"><span id="month-label">Mês e ano</span><input
                 id="month-picker" type="month" aria-label="Escolher mês de referência"></label>
-            <button type="button" id="next-month" aria-label="Próximo mês">›</button>
+            <button type="button" id="next-month" aria-label="Próximo mês"><span data-icon="chevron-right"></span></button>
           </div>
         </div>
       </header>
@@ -88,20 +72,14 @@
           <p class="home-progress-label" id="home-progress-label"></p>
           <p class="balance-note" id="balance-note" hidden></p>
         </section>
-        <section class="quick-actions" aria-label="Ações rápidas">
-          <button type="button" class="quick-action" data-open-form="despesa"><span class="quick-icon expense">−</span>Despesa</button>
-          <button type="button" class="quick-action" data-open-form="receita"><span class="quick-icon income">+</span>Receita</button>
-          <button type="button" class="quick-action" data-open-form="caixinha"><span class="quick-icon save">◈</span>Guardar</button>
-          <button type="button" class="quick-action" data-go-tab="analysis"><span class="quick-icon chart">▤</span>Análises</button>
-        </section>
         <section class="home-tiles" aria-label="Receitas e despesas">
           <article class="home-tile">
-            <span class="tile-icon income"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 16 5-5 4 4 7-8" /><path d="M15 7h5v5" /></svg></span>
+            <span class="tile-icon income" data-icon="arrow-up-right"></span>
             <p>Receitas</p><strong id="income-total">R$ 0,00</strong><span class="trend-badge" id="income-trend" hidden></span>
             <small><span id="receivable-total">R$ 0,00</span> a receber</small>
           </article>
           <article class="home-tile">
-            <span class="tile-icon expense"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 8 5 5 4-4 7 8" /><path d="M15 17h5v-5" /></svg></span>
+            <span class="tile-icon expense" data-icon="arrow-down-right"></span>
             <p>Despesas</p><strong id="expense-total">R$ 0,00</strong><span class="trend-badge" id="expense-trend" hidden></span>
             <small><span id="payable-total">R$ 0,00</span> a pagar</small>
           </article>
@@ -111,7 +89,7 @@
           <div class="upcoming-list" id="upcoming-list"></div>
         </section>
         <section class="home-mentor" id="general-mentor" aria-label="Mentor Duo">
-          <span class="spark" aria-hidden="true">✦</span>
+          <span class="spark" aria-hidden="true"><span data-icon="sparkles"></span></span>
           <p id="general-mentor-text">Sincronize os cartões para o Mentor Duo avaliar o impacto dos gastos mais recentes.</p>
         </section>
       </section>
@@ -119,10 +97,10 @@
       <section class="tab-view" data-view="transactions">
         <div class="list-head">
           <div><h2 class="list-title">Contas do mês</h2><p class="list-progress-label" id="transaction-progress-label">—</p></div>
-          <button class="icon-round" id="search-toggle" type="button" aria-label="Buscar lançamento" aria-expanded="false" aria-controls="list-search">⌕</button>
+          <button class="icon-round" id="search-toggle" type="button" aria-label="Buscar lançamento" aria-expanded="false" aria-controls="list-search"><span data-icon="search"></span></button>
         </div>
         <div class="list-progress" aria-hidden="true"><span id="transaction-progress-bar"></span></div>
-        <label class="search-field list-search" id="list-search" hidden><span aria-hidden="true">⌕</span><input id="transaction-search" type="search" placeholder="Buscar por descrição, categoria ou responsável..."></label>
+        <label class="search-field list-search" id="list-search" hidden><span aria-hidden="true"><span data-icon="search"></span></span><input id="transaction-search" type="search" placeholder="Buscar por descrição, categoria ou responsável..."></label>
         <div class="segmented" id="transaction-filters" role="group" aria-label="Filtrar lançamentos"><button class="active" type="button" data-filter="payable">A pagar</button><button type="button" data-filter="receivable">A receber</button><button type="button" data-filter="all">Tudo</button></div>
         <p class="sr-only" id="transaction-count" aria-live="polite"></p>
         <div class="checklist" id="transaction-list"></div>
@@ -145,8 +123,8 @@
           <div id="cashflow-cycles"></div>
         </section>
         <section class="home-mentor analysis-mentor" aria-label="Mentor Duo">
-          <span class="spark" aria-hidden="true">✦</span>
-          <div><p id="insight-text">Use a IA para traduzir os números em uma reflexão simples e uma próxima ação concreta.</p><button type="button" class="text-button" id="analyze-button">Analisar dados com IA →</button></div>
+          <span class="spark" aria-hidden="true"><span data-icon="sparkles"></span></span>
+          <div><p id="insight-text">Use a IA para traduzir os números em uma reflexão simples e uma próxima ação concreta.</p><button type="button" class="text-button" id="analyze-button">Analisar dados com IA <span data-icon="arrow-right"></span></button></div>
         </section>
       </section>
 
@@ -184,7 +162,7 @@
         <div>
           <p class="eyebrow">MOVIMENTAÇÃO</p>
           <h2 id="dialog-title">Novo lançamento</h2>
-        </div><button type="button" class="icon-button" data-close-dialog aria-label="Fechar">×</button>
+        </div><button type="button" class="icon-button" data-close-dialog aria-label="Fechar"><span data-icon="x"></span></button>
       </div>
       <input type="hidden" name="id">
       <div class="form-grid">
@@ -229,7 +207,7 @@
         <div>
           <p class="eyebrow">OBJETIVO</p>
           <h2>Editar caixinha</h2>
-        </div><button type="button" class="icon-button" data-close-box-dialog aria-label="Fechar">×</button>
+        </div><button type="button" class="icon-button" data-close-box-dialog aria-label="Fechar"><span data-icon="x"></span></button>
       </div>
       <input type="hidden" name="currentName">
       <div class="form-grid">
@@ -244,7 +222,7 @@
     <form id="bill-form">
       <div class="dialog-head">
         <div><p class="eyebrow">FATURA DO CARTÃO</p><h2 id="bill-dialog-title">Ajustar fatura</h2></div>
-        <button type="button" class="icon-button" data-close-bill-dialog aria-label="Fechar">×</button>
+        <button type="button" class="icon-button" data-close-bill-dialog aria-label="Fechar"><span data-icon="x"></span></button>
       </div>
       <input type="hidden" name="id">
       <div class="form-grid">
@@ -262,7 +240,7 @@
     <div class="history-body">
       <div class="dialog-head">
         <div><p class="eyebrow">HISTÓRICO DE FATURAS</p><h2 id="bill-history-title">Cartão</h2></div>
-        <button type="button" class="icon-button" data-close-history aria-label="Fechar">×</button>
+        <button type="button" class="icon-button" data-close-history aria-label="Fechar"><span data-icon="x"></span></button>
       </div>
       <div class="history-stats" id="bill-history-stats"></div>
       <div class="history-chart" id="bill-history-chart"></div>
@@ -275,7 +253,7 @@
       <div>
         <p class="eyebrow">CONFIRMAÇÃO</p>
         <h2 id="confirm-title">Excluir lançamento</h2>
-      </div><button type="button" class="icon-button" id="confirm-cancel-x" aria-label="Fechar">×</button>
+      </div><button type="button" class="icon-button" id="confirm-cancel-x" aria-label="Fechar"><span data-icon="x"></span></button>
     </div>
     <p class="confirm-text" id="confirm-text"></p>
     <div class="dialog-actions"><button type="button" class="button ghost" id="confirm-cancel">Cancelar</button><button type="button" class="button danger" id="confirm-ok">Excluir</button></div>
@@ -285,16 +263,16 @@
 
   <div class="fab" id="fab">
     <div class="fab-menu" id="fab-menu" role="menu" hidden>
-      <button type="button" role="menuitem" data-fab-action="despesa"><span>−</span>Nova despesa</button>
-      <button type="button" role="menuitem" data-fab-action="receita"><span>+</span>Nova receita</button>
-      <button type="button" role="menuitem" data-fab-action="caixinha"><span>◎</span>Guardar na caixinha</button>
-      <button type="button" role="menuitem" data-fab-action="sync" id="fab-sync"><span>↻</span>Sincronizar bancos</button>
+      <button type="button" role="menuitem" data-fab-action="despesa"><span data-icon="minus"></span>Nova despesa</button>
+      <button type="button" role="menuitem" data-fab-action="receita"><span data-icon="plus"></span>Nova receita</button>
+      <button type="button" role="menuitem" data-fab-action="caixinha"><span data-icon="piggy-bank"></span>Guardar na caixinha</button>
+      <button type="button" role="menuitem" data-fab-action="sync" id="fab-sync"><span data-icon="refresh-cw"></span>Sincronizar bancos</button>
     </div>
-    <button type="button" class="fab-button" id="fab-button" aria-label="Ações rápidas" aria-haspopup="menu" aria-expanded="false" aria-controls="fab-menu">＋</button>
+    <button type="button" class="fab-button" id="fab-button" aria-label="Ações rápidas" aria-haspopup="menu" aria-expanded="false" aria-controls="fab-menu"><span data-icon="plus"></span></button>
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
-  <script type="module" src="/js/app.js?v=64"></script>
+  <script type="module" src="/js/app.js?v=73"></script>
 </body>
 
 </html>

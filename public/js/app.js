@@ -1,5 +1,6 @@
 import { requireSession, clearSession } from './auth.js';
 import { markFreshReadDone, getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
+import { icon, hydrateIcons } from './icons.js?v=73';
 
 const currentSession = requireSession();
 const state = {
@@ -36,11 +37,9 @@ elements.month.value = new Date().toISOString().slice(0, 7);
 updateMonthLabel();
 document.querySelector('#user-email').textContent = currentSession?.user?.email || 'Conta compartilhada';
 renderGreeting();
+hydrateIcons();
 
-document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => {
-  const preset = { despesa: 'Despesa', receita: 'Receita', caixinha: 'Depósito' }[button.dataset.openForm];
-  openForm(null, preset || null);
-}));
+document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => openForm()));
 document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => elements.dialog.close()));
 document.querySelectorAll('[data-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.tab)));
 document.querySelectorAll('[data-go-tab]').forEach((button) => button.addEventListener('click', () => switchTab(button.dataset.goTab)));
@@ -268,24 +267,24 @@ function handleAnalysisBar(event) {
   renderAnalysis();
 }
 
-// Identidade visual por categoria: ícone e cor fixos (não por posição do ranking).
+// Identidade visual por categoria: ícone Lucide + cor de destaque da barra.
 const CATEGORY_STYLE = {
-  'Moradia e contas': ['⌂', '#5cb8cc'],
-  'Alimentação': ['🍽', '#f2c46d'],
-  'Transporte': ['🚗', '#7fae9c'],
-  'Saúde e bem-estar': ['✚', '#ff806f'],
-  'Assinaturas e serviços digitais': ['▶', '#b48ce0'],
-  'Educação': ['✎', '#5cb8cc'],
-  'Lazer e viagens': ['✈', '#e99d7d'],
-  'Compras': ['◆', '#b48ce0'],
-  'Dívidas, taxas e impostos': ['▤', '#f2c46d'],
-  'Transferências': ['⇄', '#8eb69b'],
-  'Cartão de crédito': ['▭', '#27df8b'],
-  'Casal e eventos': ['♥', '#e99d7d']
+  'Moradia e contas': ['house', '#5cb8cc'],
+  'Alimentação': ['utensils', '#f2c46d'],
+  'Transporte': ['car', '#7fae9c'],
+  'Saúde e bem-estar': ['heart-pulse', '#ff806f'],
+  'Assinaturas e serviços digitais': ['monitor-play', '#b48ce0'],
+  'Educação': ['graduation-cap', '#5cb8cc'],
+  'Lazer e viagens': ['plane', '#e99d7d'],
+  'Compras': ['shopping-bag', '#b48ce0'],
+  'Dívidas, taxas e impostos': ['receipt-text', '#f2c46d'],
+  'Transferências': ['arrow-left-right', '#8eb69b'],
+  'Cartão de crédito': ['credit-card', '#27df8b'],
+  'Casal e eventos': ['heart', '#e99d7d']
 };
 function categoryStyle(name) {
-  const [icon, color] = CATEGORY_STYLE[name] || ['•', '#7fae9c'];
-  return `<span class="category-icon" style="background:${color}22;color:${color}">${icon}</span>`;
+  const [iconName] = CATEGORY_STYLE[name] || ['wallet', '#7fae9c'];
+  return `<span class="category-icon">${icon(iconName)}</span>`;
 }
 
 // Categorias do mês selecionado, com o mesmo critério dos totais da análise.
@@ -324,7 +323,7 @@ function renderBoxes(boxes) {
     const reached = box.meta > 0 && (progresso >= 100 || box.saldo >= box.meta);
     const missing = Math.max(0, (box.meta || 0) - (box.saldo || 0));
     const note = reached ? 'Meta batida' : missing > 0 ? `Falta ${money(missing)}` : '';
-    return `<article class="box-item ${reached ? 'complete' : ''}"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}"><span class="box-headline"><strong>${name}</strong><span class="box-percent ${reached ? 'done' : ''}">${reached ? '✓' : ''}${progresso}%</span></span><span class="box-value">${money(box.saldo)}<small> de ${money(box.meta)}</small></span><span class="box-bar" role="progressbar" aria-valuenow="${progresso}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progresso}%"></i></span><small class="box-note">${note ? `${note} · ` : ''}${escapeHtml(projectionText(box.projection))}</small></button></article>`;
+    return `<article class="box-item ${reached ? 'complete' : ''}"><button type="button" class="box-top" data-box-plan="${name}" aria-label="Abrir a caixinha ${name}"><span class="box-headline"><strong>${name}</strong><span class="box-percent ${reached ? 'done' : ''}">${reached ? icon('check') : ''}${progresso}%</span></span><span class="box-value">${money(box.saldo)}<small> de ${money(box.meta)}</small></span><span class="box-bar" role="progressbar" aria-valuenow="${progresso}" aria-valuemin="0" aria-valuemax="100"><i style="width:${progresso}%"></i></span><small class="box-note">${note ? `${note} · ` : ''}${escapeHtml(projectionText(box.projection))}</small></button></article>`;
   }).join('') : '<div class="check-empty"><p>Nenhuma caixinha configurada.</p></div>';
   const favoriteList = document.querySelector('#favorite-box-list');
   if (favoriteList) favoriteList.innerHTML = '';
@@ -347,7 +346,7 @@ function openBoxSheet(name) {
   sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(box.nome)}</p><p class="sheet-sub">${money(box.saldo)} de ${money(box.meta)} · ${Math.round(box.progresso || 0)}%</p>
     <p class="box-sheet-projection">${escapeHtml(projectionText(box.projection))}</p>
     <div class="box-target"><label class="field"><span>Quero chegar à meta até</span><input type="month" id="box-target-month" min="${shiftMonthKeyLocal(baseMonth, 1)}" value="${defaultTarget}"></label><p id="box-target-result"></p></div>
-    <div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">+</span>Guardar</button><button type="button" data-sheet-action="box-history"><span aria-hidden="true">◷</span>Ver histórico</button><button type="button" data-sheet-action="box-edit"><span aria-hidden="true">✎</span>Editar meta</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
+    <div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">${icon('plus')}</span>Guardar</button><button type="button" data-sheet-action="box-history"><span aria-hidden="true">${icon('history')}</span>Ver histórico</button><button type="button" data-sheet-action="box-edit"><span aria-hidden="true">${icon('pencil')}</span>Editar meta</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
   const input = sheet.querySelector('#box-target-month');
   const result = sheet.querySelector('#box-target-result');
   const update = () => {
@@ -376,7 +375,7 @@ function openBoxHistory(name) {
   const sheet = document.querySelector('#action-sheet');
   sheet.dataset.id = '';
   sheet.dataset.box = box.nome;
-  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">Histórico · ${escapeHtml(box.nome)}</p><p class="sheet-sub">Guardado ${money(saved)}${withdrawn ? ` · Resgatado ${money(withdrawn)}` : ''}</p><div class="sheet-list sheet-list-tall">${history.map((item) => `<div class="sheet-list-row"><div><strong>${escapeHtml(item.descricao)}</strong><span>${fullDate(item.data)} · ${escapeHtml(item.tipo)}</span></div><strong class="${isOut(item) ? 'expense-value' : 'income-value'}">${isOut(item) ? '− ' : '+ '}${money(item.valor)}</strong></div>`).join('') || '<p class="muted-copy">Nenhum depósito registrado ainda.</p>'}</div><div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">+</span>Guardar</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">Histórico · ${escapeHtml(box.nome)}</p><p class="sheet-sub">Guardado ${money(saved)}${withdrawn ? ` · Resgatado ${money(withdrawn)}` : ''}</p><div class="sheet-list sheet-list-tall">${history.map((item) => `<div class="sheet-list-row"><div><strong>${escapeHtml(item.descricao)}</strong><span>${fullDate(item.data)} · ${escapeHtml(item.tipo)}</span></div><strong class="${isOut(item) ? 'expense-value' : 'income-value'}">${isOut(item) ? '− ' : '+ '}${money(item.valor)}</strong></div>`).join('') || '<p class="muted-copy">Nenhum depósito registrado ainda.</p>'}</div><div class="sheet-actions"><button type="button" data-sheet-action="box-save"><span aria-hidden="true">${icon('plus')}</span>Guardar</button><button type="button" class="cancel" data-sheet-action="cancel">Fechar</button></div></div>`;
   sheet.showModal();
   sheet.querySelector('.cancel')?.focus();
 }
@@ -468,7 +467,7 @@ function renderTransactions() {
   ].filter(([, list]) => list.length);
   const groupHtml = groups.map(([title, list, tone]) => `<section class="check-group ${tone}"><h3 class="check-group-title">${title}<span>${list.length}</span></h3><div class="check-list">${list.map((item) => checkRow(item, today)).join('')}</div></section>`).join('');
   const doneHtml = done.length ? `<details class="check-group done-group"><summary class="check-group-title">${words[2]}<span>${done.length}</span></summary><div class="check-list">${done.map((item) => checkRow(item, today)).join('')}</div></details>` : '';
-  const ghostHtml = `<button type="button" class="add-ghost" data-add-transaction="1"><span aria-hidden="true">+</span>Adicionar lançamento</button>`;
+  const ghostHtml = `<button type="button" class="add-ghost" data-add-transaction="1"><span aria-hidden="true">${icon('plus')}</span>Adicionar lançamento</button>`;
   const listHtml = groupHtml + doneHtml || '<div class="check-empty"><p>Nenhum lançamento encontrado.</p></div>';
   elements.list.innerHTML = `${listHtml}${ghostHtml}`;
 }
@@ -491,7 +490,7 @@ function checkRow(item, today) {
   const valueClass = deposit ? 'deposit' : positive ? 'income-value' : 'expense-value';
   const sign = deposit ? '' : positive ? '+ ' : '− ';
   const label = `${paid ? 'Desmarcar' : 'Marcar'} ${escapeHtml(item.descricao)} como ${positive ? 'recebido' : 'pago'}`;
-  return `<div class="check-row ${paid ? 'done' : ''} ${overdue ? 'overdue' : ''}"><button type="button" class="check-circle ${paid ? 'checked' : ''}" ${deposit || locked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} aria-label="${label}">${paid ? iconSvg('check') : ''}</button><button type="button" class="check-main" data-open-actions="${escapeHtml(item.id)}" title="Opções do lançamento"><span class="check-text"><strong>${escapeHtml(item.descricao)}</strong><span>${meta}</span></span>${rowAvatar(item.responsavel)}<strong class="check-value ${valueClass}">${sign}${money(item.valor)}</strong><span class="row-more" aria-hidden="true">⋮</span></button></div>`;
+  return `<div class="check-row ${paid ? 'done' : ''} ${overdue ? 'overdue' : ''}"><button type="button" class="check-circle ${paid ? 'checked' : ''}" ${deposit || locked ? 'disabled' : `data-status="${escapeHtml(item.id)}"`} aria-label="${label}">${paid ? icon('check') : ''}</button><button type="button" class="check-main" data-open-actions="${escapeHtml(item.id)}" title="Opções do lançamento"><span class="check-text"><strong>${escapeHtml(item.descricao)}</strong><span>${meta}</span></span>${rowAvatar(item.responsavel)}<strong class="check-value ${valueClass}">${sign}${money(item.valor)}</strong><span class="row-more" aria-hidden="true">${icon('ellipsis-vertical')}</span></button></div>`;
 }
 
 // Reconhecimento imediato do responsável: bolinha D, T ou o par do casal.
@@ -514,12 +513,12 @@ function openActionSheet(id) {
   const locked = bill && ['Aberta', 'Projetada'].includes(item.situacao);
   const paid = isTransactionDone(item);
   const actions = [];
-  if (!deposit && !locked) actions.push(['toggle', paid ? `Marcar como ${positive ? 'não recebido' : 'pendente'}` : `Marcar como ${positive ? 'recebido' : 'pago'}`, '✓']);
-  if (bill && !locked) actions.push(['bill', 'Ajustar valor da fatura', '✎']);
-  if (!bill) actions.push(['edit', 'Editar', '✎'], ['delete', 'Excluir', '✕']);
+  if (!deposit && !locked) actions.push(['toggle', paid ? `Marcar como ${positive ? 'não recebido' : 'pendente'}` : `Marcar como ${positive ? 'recebido' : 'pago'}`, 'check']);
+  if (bill && !locked) actions.push(['bill', 'Ajustar valor da fatura', 'pencil']);
+  if (!bill) actions.push(['edit', 'Editar', 'pencil'], ['delete', 'Excluir', 'x']);
   const sheet = document.querySelector('#action-sheet');
   sheet.dataset.id = id;
-  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(item.descricao)}</p><p class="sheet-sub">${deposit ? '' : positive ? '+ ' : '− '}${money(item.valor)} · ${fullDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</p><div class="sheet-actions">${actions.map(([action, label, icon]) => `<button type="button" data-sheet-action="${action}" class="${action === 'delete' ? 'danger' : ''}"><span aria-hidden="true">${icon}</span>${label}</button>`).join('')}<button type="button" class="cancel" data-sheet-action="cancel">Cancelar</button></div></div>`;
+  sheet.innerHTML = `<div class="sheet-body"><span class="sheet-handle" aria-hidden="true"></span><p class="sheet-title">${escapeHtml(item.descricao)}</p><p class="sheet-sub">${deposit ? '' : positive ? '+ ' : '− '}${money(item.valor)} · ${fullDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</p><div class="sheet-actions">${actions.map(([action, label, iconName]) => `<button type="button" data-sheet-action="${action}" class="${action === 'delete' ? 'danger' : ''}"><span aria-hidden="true">${icon(iconName)}</span>${label}</button>`).join('')}<button type="button" class="cancel" data-sheet-action="cancel">Cancelar</button></div></div>`;
   sheet.showModal();
   sheet.querySelector('.cancel')?.focus();
 }
@@ -628,8 +627,8 @@ function renderSelectedCard(data, monthLabel) {
     <div class="limit-row"><span>Usado ${money(card.usedLimit || 0)}</span><span>Disponível ${money(card.availableLimit || 0)}</span></div>
     <p class="card-detail-next">Próxima (${nextLabel}): ${nextBill ? `${money(nextBill.valor)} · ${nextBill.estimada ? 'estimativa' : 'oficial'}` : 'sem previsão'}</p>
     <div class="card-actions">
-      <button type="button" data-bill-history="${escapeHtml(card.id)}"><span class="action-icon" aria-hidden="true">${iconSvg('clock')}</span>Histórico</button>
-      <button type="button" data-show-purchases><span class="action-icon" aria-hidden="true">${iconSvg('bag')}</span>Compras</button>
+      <button type="button" data-bill-history="${escapeHtml(card.id)}"><span class="action-icon" aria-hidden="true">${icon('history')}</span>Histórico</button>
+      <button type="button" data-show-purchases><span class="action-icon" aria-hidden="true">${icon('shopping-bag')}</span>Compras</button>
       <label><select data-card-owner="${escapeHtml(card.id)}" aria-label="Responsável pelo cartão">${owners}</select></label>
     </div>
   </article>`;
@@ -671,7 +670,7 @@ function renderUpcoming() {
     const income = item.tipo === 'Receita';
     const overdue = item.data < today;
     const label = income ? 'recebido' : 'pago';
-    const toggle = `<button class="status-toggle" data-status="${escapeHtml(item.id)}" title="Marcar como ${label}" aria-label="Marcar ${escapeHtml(item.descricao)} como ${label}">${iconSvg('check')}</button>`;
+    const toggle = `<button class="status-toggle" data-status="${escapeHtml(item.id)}" title="Marcar como ${label}" aria-label="Marcar ${escapeHtml(item.descricao)} como ${label}">${icon('check')}</button>`;
     // O vencimento mais próximo ganha um card invertido: é a ação nº 1 da tela.
     if (index === 0) {
       return `<div class="urgent-bill ${overdue ? 'overdue' : ''}">${toggle}<div class="urgent-info"><span class="urgent-label">${overdue ? 'Mais urgente · venceu' : income ? 'Próxima entrada' : 'Mais urgente'}</span><strong>${escapeHtml(item.descricao)}</strong><span>${overdue ? 'Venceu' : income ? 'Entra' : 'Vence'} ${shortDate(item.data)}${item.categoria ? ` · ${escapeHtml(item.categoria)}` : ''}</span></div><strong class="${income ? 'income-value' : 'expense-value'}">${income ? '+' : '−'} ${money(item.valor)}</strong></div>`;
@@ -1506,14 +1505,3 @@ function balanceMessage(balance) {
   return 'Tudo equilibrado por aqui. Sigam acompanhando juntos.';
 }
 function escapeHtml(value) { return String(value ?? '').replace(/[&<>'"]/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[char]); }
-function iconSvg(name) {
-  const paths = {
-    check: '<path d="m5 12 4 4L19 6"/>',
-    clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
-    bag: '<path d="M6.5 8.5h11L16.4 20H7.6L6.5 8.5Z"/><path d="M9 8.5V7a3 3 0 0 1 6 0v1.5"/>',
-    edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4Z"/>',
-    trash: '<path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5"/>',
-    money: '<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M7 9H5m14 6h-2"/>'
-  };
-  return `<svg class="ui-icon" viewBox="0 0 24 24" aria-hidden="true">${paths[name]}</svg>`;
-}
