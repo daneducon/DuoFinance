@@ -13,7 +13,7 @@
   <link
     href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap"
     rel="stylesheet">
-  <link rel="stylesheet" href="/css/style.css?v=73">
+  <link rel="stylesheet" href="/css/style.css?v=74">
   <title>Nosso dinheiro | Visão geral</title>
 </head>
 
@@ -53,6 +53,7 @@
                 id="month-picker" type="month" aria-label="Escolher mês de referência"></label>
             <button type="button" id="next-month" aria-label="Próximo mês"><span data-icon="chevron-right"></span></button>
           </div>
+          <button type="button" class="icon-round" id="global-search-open" aria-label="Buscar no app" aria-haspopup="dialog"><span data-icon="search"></span></button>
         </div>
       </header>
 
@@ -60,10 +61,6 @@
         depois.</div>
 
       <section class="tab-view active" data-view="general">
-        <section class="connections" id="connections" aria-label="Carteiras conectadas" hidden>
-          <div class="connections-head"><h2>Carteiras conectadas</h2><span id="connections-summary"></span></div>
-          <div class="wallet-strip" id="connections-list" role="list"></div>
-        </section>
         <section class="home-hero" aria-label="Saldo previsto">
           <p class="home-label">Saldo previsto do mês</p>
           <div class="home-balance" id="forecast-balance">R$ 0,00</div>
@@ -95,6 +92,10 @@
       </section>
 
       <section class="tab-view" data-view="transactions">
+        <section class="connections" id="connections" aria-label="Carteiras conectadas" hidden>
+          <div class="connections-head"><h2>Carteiras conectadas</h2><span id="connections-summary"></span></div>
+          <div class="wallet-strip" id="connections-list" role="list"></div>
+        </section>
         <div class="list-head">
           <div><h2 class="list-title">Contas do mês</h2><p class="list-progress-label" id="transaction-progress-label">—</p></div>
           <button class="icon-round" id="search-toggle" type="button" aria-label="Buscar lançamento" aria-expanded="false" aria-controls="list-search"><span data-icon="search"></span></button>
@@ -248,6 +249,19 @@
     </div>
   </dialog>
 
+  <dialog id="global-search-dialog" aria-label="Busca global">
+    <div class="dialog-head">
+      <div>
+        <p class="eyebrow">BUSCA</p>
+        <h2>Tudo no DuoFinance</h2>
+      </div><button type="button" class="icon-button" data-close-search aria-label="Fechar"><span data-icon="x"></span></button>
+    </div>
+    <label class="search-field"><span aria-hidden="true"><span data-icon="search"></span></span>
+      <input id="global-search-input" type="search" placeholder="Buscar lançamentos, caixinhas e cartões..."
+        autocomplete="off"></label>
+    <div class="search-results" id="global-search-results" aria-live="polite"></div>
+  </dialog>
+
   <dialog id="confirm-dialog">
     <div class="dialog-head">
       <div>
@@ -272,7 +286,7 @@
   </div>
 
   <div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-message"></span><button type="button" class="toast-action" id="toast-action" hidden>Desfazer</button></div>
-  <script type="module" src="/js/app.js?v=73"></script>
+  <script type="module" src="/js/app.js?v=74"></script>
 </body>
 
 </html>

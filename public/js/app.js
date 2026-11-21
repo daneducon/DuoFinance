@@ -1,6 +1,6 @@
 import { requireSession, clearSession } from './auth.js';
 import { markFreshReadDone, getFinances, getCards, getSyncMentor, syncPluggy, updateBillStatus, updateBill, updateCardResponsible, mutate, updateBox, analyze, syncQueue, subscribePush, macroCategory, queueRemove } from './api.js?v=46';
-import { icon, hydrateIcons } from './icons.js?v=73';
+import { icon, hydrateIcons } from './icons.js?v=74';
 
 const currentSession = requireSession();
 const state = {
@@ -33,11 +33,41 @@ toastAction.addEventListener('click', () => {
 });
 const tabs = { general: 'Visão geral', transactions: 'Contas', analysis: 'Análises', boxes: 'Caixinhas', cards: 'Cartões' };
 
-elements.month.value = new Date().toISOString().slice(0, 7);
+// Estado da UI persistido: mês, filtro, período e cartão escolhido sobrevivem
+// a trocas de aba, F5 e reabertura do PWA.
+const UI_STATE_KEY = 'duofinance_ui_state';
+function loadUiState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(UI_STATE_KEY)) || {};
+    return {
+      month: /^\d{4}-\d{2}$/.test(saved.month || '') ? saved.month : '',
+      transactionFilter: ['payable', 'receivable', 'all'].includes(saved.transactionFilter) ? saved.transactionFilter : '',
+      analysisPeriod: [3, 6, 12].includes(Number(saved.analysisPeriod)) ? Number(saved.analysisPeriod) : 0,
+      selectedCardId: typeof saved.selectedCardId === 'string' ? saved.selectedCardId : ''
+    };
+  } catch { return {}; }
+}
+function saveUiState() {
+  try {
+    localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+      month: elements.month.value,
+      transactionFilter: state.transactionFilter,
+      analysisPeriod: state.analysisPeriod,
+      selectedCardId: state.selectedCardId
+    }));
+  } catch { /* sem armazenamento: segue sem persistir */ }
+}
+
+const uiState = loadUiState();
+elements.month.value = uiState.month || new Date().toISOString().slice(0, 7);
+if (uiState.transactionFilter) state.transactionFilter = uiState.transactionFilter;
+if (uiState.analysisPeriod) state.analysisPeriod = uiState.analysisPeriod;
+if (uiState.selectedCardId) state.selectedCardId = uiState.selectedCardId;
 updateMonthLabel();
 document.querySelector('#user-email').textContent = currentSession?.user?.email || 'Conta compartilhada';
 renderGreeting();
 hydrateIcons();
+document.querySelectorAll('[data-filter]').forEach((button) => button.classList.toggle('active', button.dataset.filter === state.transactionFilter));
 
 document.querySelectorAll('[data-open-form]').forEach((button) => button.addEventListener('click', () => openForm()));
 document.querySelectorAll('[data-close-dialog]').forEach((button) => button.addEventListener('click', () => elements.dialog.close()));
@@ -65,7 +95,7 @@ document.querySelector('#transaction-filters').addEventListener('click', handleF
 document.querySelector('#analysis-period').addEventListener('click', handleAnalysisPeriod);
 document.querySelector('#trend-chart').addEventListener('click', handleAnalysisBar);
 document.querySelector('#category-chart').addEventListener('click', handleCategoryClick);
-elements.month.addEventListener('change', () => { updateMonthLabel(); load(); });
+elements.month.addEventListener('change', () => { updateMonthLabel(); saveUiState(); load(); });
 document.querySelector('#previous-month').addEventListener('click', () => shiftMonth(-1));
 document.querySelector('#next-month').addEventListener('click', () => shiftMonth(1));
 elements.form.addEventListener('submit', saveTransaction);
@@ -257,6 +287,7 @@ function handleAnalysisPeriod(event) {
   const button = event.target.closest('[data-period]');
   if (!button) return;
   state.analysisPeriod = Number(button.dataset.period);
+  saveUiState();
   renderAnalysis();
 }
 
@@ -547,6 +578,108 @@ function toggleListSearch() {
   document.querySelector('#search-toggle').setAttribute('aria-expanded', String(!field.hidden));
   if (!field.hidden) document.querySelector('#transaction-search').focus();
 }
+
+// Busca global: lançamentos (mês atual e demais meses), caixinhas e cartões
+// num só lugar, com atalho para a tela de destino.
+const searchDialog = document.querySelector('#global-search-dialog');
+const searchInput = document.querySelector('#global-search-input');
+const searchResults = document.querySelector('#global-search-results');
+let searchTimer = null;
+
+document.querySelector('#global-search-open').addEventListener('click', () => {
+  searchDialog.showModal();
+  searchInput.value = '';
+  renderGlobalSearch('');
+  searchInput.focus();
+});
+document.querySelector('[data-close-search]').addEventListener('click', () => searchDialog.close());
+searchDialog.addEventListener('click', (event) => { if (event.target === searchDialog) searchDialog.close(); });
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => renderGlobalSearch(searchInput.value), 150);
+});
+
+function globalMatches(haystacks, query) {
+  const target = normalize(query);
+  return haystacks.some((value) => normalize(value).includes(target));
+}
+
+function searchResultRow(type, id, iconName, title, meta, value, tone = '') {
+  return `<button type="button" class="search-result" data-result="${escapeHtml(`${type}|${id}`)}"><span class="search-result-icon">${icon(iconName)}</span><span class="search-result-text"><strong>${escapeHtml(title)}</strong><small>${escapeHtml(meta)}</small></span>${value ? `<span class="search-result-value ${tone}">${value}</span>` : ''}</button>`;
+}
+
+function renderGlobalSearch(rawQuery) {
+  const query = String(rawQuery || '').trim();
+  if (query.length < 2) {
+    searchResults.innerHTML = '<p class="search-empty">Digite ao menos 2 letras para buscar entre lançamentos, caixinhas e cartões.</p>';
+    return;
+  }
+  const seen = new Set();
+  const transactions = [...(state.transactions || []), ...(state.spending || [])].filter((item) => {
+    const key = item.id || `${item.descricao}|${item.valor}|${item.mesRef || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return globalMatches([item.descricao, item.categoria, item.responsavel, item.tipo], query);
+  }).slice(0, 8);
+  const boxes = (state.summary?.caixinhas || state.configuration?.caixinhas || [])
+    .filter((box) => globalMatches([box.nome], query)).slice(0, 5);
+  const cards = (state.cardsData.cards || [])
+    .filter((card) => globalMatches([card.name, card.institution, card.brand, card.number], query)).slice(0, 5);
+
+  const positive = ['Receita', 'Resgate', 'Estorno', 'Depósito', 'Depósito Caixinha'];
+  const groups = [];
+  if (transactions.length) {
+    groups.push(`<p class="search-group-label">Lançamentos</p>${transactions.map((item) => {
+      const income = positive.includes(item.tipo);
+      const month = item.mesRef && item.mesRef !== elements.month.value ? ` · ${monthLabel(item.mesRef)}` : '';
+      const meta = `${fullDate(item.data)} · ${item.categoria || item.tipo}${month}`;
+      return searchResultRow('transaction', item.id, income ? 'arrow-down-right' : 'receipt-text', item.descricao, meta, money(item.valor), income ? 'income' : 'expense');
+    }).join('')}`);
+  }
+  if (boxes.length) {
+    groups.push(`<p class="search-group-label">Caixinhas</p>${boxes.map((box) => searchResultRow('box', box.nome, 'piggy-bank', box.nome, `Meta ${money(box.meta)}`, money(box.saldo))).join('')}`);
+  }
+  if (cards.length) {
+    groups.push(`<p class="search-group-label">Cartões</p>${cards.map((card) => searchResultRow('card', card.id, 'credit-card', friendlyAccountName(card.name), `${card.institution || ''} · final ${String(card.number || '').slice(-4)}`, money(card.availableLimit || 0))).join('')}`);
+  }
+  searchResults.innerHTML = groups.length
+    ? groups.join('')
+    : `<p class="search-empty">Nada encontrado para “${escapeHtml(query)}”.</p>`;
+}
+
+// Ao escolher um resultado: fecha a busca, vai pra tela e abre o item.
+// Lançamento de outro mês troca o mês antes de abrir a folha de ações.
+searchResults.addEventListener('click', async (event) => {
+  const row = event.target.closest('[data-result]');
+  if (!row) return;
+  const cut = row.dataset.result.indexOf('|');
+  const type = row.dataset.result.slice(0, cut);
+  const id = row.dataset.result.slice(cut + 1);
+  searchDialog.close();
+  if (type === 'box') {
+    switchTab('boxes');
+    return openBoxSheet(id);
+  }
+  if (type === 'card') {
+    switchTab('cards');
+    state.selectedCardId = id;
+    saveUiState();
+    return renderCards();
+  }
+  switchTab('transactions');
+  let item = state.transactions.find((entry) => entry.id === id);
+  if (!item) {
+    item = (state.spending || []).find((entry) => entry.id === id);
+    if (item?.mesRef) {
+      elements.month.value = item.mesRef;
+      updateMonthLabel();
+      saveUiState();
+      await load();
+      item = state.transactions.find((entry) => entry.id === id) || item;
+    }
+  }
+  if (state.transactions.some((entry) => entry.id === id)) openActionSheet(id);
+});
 
 function openBoxDeposit(name) {
   openForm(null, 'Depósito');
@@ -850,6 +983,7 @@ function selectCard(event) {
   const id = event.target.closest('[data-card-id]')?.dataset.cardId;
   if (!id) return;
   state.selectedCardId = id;
+  saveUiState();
   renderCards();
 }
 
@@ -906,6 +1040,7 @@ function handleFilter(event) {
   if (!button) return;
   state.transactionFilter = button.dataset.filter;
   document.querySelectorAll('[data-filter]').forEach((item) => item.classList.toggle('active', item === button));
+  saveUiState();
   renderTransactions();
 }
 
