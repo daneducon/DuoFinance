@@ -3,7 +3,7 @@
 const { randomUUID } = require('node:crypto');
 const { verifyRequest } = require('../lib/auth');
 const { send, methodNotAllowed, errorResponse } = require('../lib/http');
-const { expandRecurrence, withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
+const { expandRecurrence, accountExpenses, withoutBoxExpenses, validateTransaction, validateBox, toSheetRow, summarize, calculateCashFlow, buildAnalysis, withoutSupersededCardBills, projectBox, todayIso, calculateCashCycles, recentMonths, boxHistory, freeUntilNextIncome } = require('../lib/finance');
 const sheets = require('../lib/sheets');
 const { liveBankBalances } = require('../lib/live-balance');
 const { describeConnections } = require('../lib/connections');
@@ -42,23 +42,23 @@ async function getFinances(req, res) {
   // Análise de gastos: a mesma lista da tela de contas (lançamentos manuais e faturas dos cartões),
   // sem pagamentos de fatura lançados à mão (já estão nas faturas) e sem movimentos de caixinha.
   // As compras brutas da Pluggy não entram: a fatura já as reúne.
-  const spendingTransactions = withoutBoxExpenses(
+  const spendingTransactions = accountExpenses(withoutBoxExpenses(
     [...manualTransactions.filter((item) => ['Despesa', 'Estorno'].includes(item.tipo)), ...pluggyBills],
     configuration.caixinhas
-  );
+  ));
   const manualMonthTransactions = manualTransactions.filter((item) => item.mesRef === month);
   const monthBills = pluggyBills.filter((item) => item.mesRef === month);
-  const summary = summarize([...manualMonthTransactions, ...monthBills], configuration.caixinhas, manualTransactions);
+  const summary = summarize(accountExpenses([...manualMonthTransactions, ...monthBills]), configuration.caixinhas, manualTransactions);
   // Mês anterior com o mesmo critério dos cards, para o comparativo de receitas e despesas.
   const previousMonth = recentMonths(month, 2)[0];
-  const previousSummary = summarize([
+  const previousSummary = summarize(accountExpenses([
     ...manualTransactions.filter((item) => item.mesRef === previousMonth),
     ...pluggyBills.filter((item) => item.mesRef === previousMonth)
-  ], configuration.caixinhas, manualTransactions);
+  ]), configuration.caixinhas, manualTransactions);
   const comparison = { month: previousMonth, receitas: previousSummary.receitas, despesas: previousSummary.despesas };
   summary.caixinhas = summary.caixinhas.map((box) => ({ ...box, projection: projectBox(manualTransactions, box, month), history: boxHistory(manualTransactions, box.nome) }));
-  summary.aPagar = withoutBoxExpenses(manualTransactions, configuration.caixinhas).filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
-    + monthBills.filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
+  summary.aPagar = accountExpenses(withoutBoxExpenses(manualTransactions, configuration.caixinhas)).filter((item) => item.mesRef === month && item.tipo === 'Despesa' && item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0)
+    + accountExpenses(monthBills).filter((item) => item.status === 'Pendente').reduce((sum, item) => sum + item.valor, 0);
   const [pluggyAccounts, pluggyItems] = await Promise.all([sheets.listPluggyAccounts(), sheets.listPluggyItems()]);
   const hasBank = pluggyAccounts.some((account) => account.type === 'BANK');
   // Saldo do banco no momento da consulta; cai para o último sincronizado se o banco não responder.
